@@ -1,4 +1,4 @@
-package membershipproto
+package membership
 
 import akka.actor.ActorRef
 
@@ -8,7 +8,9 @@ case class ForwardJoin(newNode: ActorRef, ttl: Long)
 
 object Disconnect
 
-case class Gossip(p: ActorRef, m: String, mid: String, myself: ActorRef)
+case class Gossip(m: String, mid: Array[Byte])
+
+case class DeliverGossip(m: String)
 
 
 
