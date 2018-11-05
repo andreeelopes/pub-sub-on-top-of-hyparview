@@ -12,6 +12,9 @@ case class Gossip(m: String, mid: Array[Byte])
 
 case class DeliverGossip(m: String)
 
+case class Neighbors(neighbors: List[ActorRef]) //TODO
+
+object GetNeighbors //TODO
 
 
 
