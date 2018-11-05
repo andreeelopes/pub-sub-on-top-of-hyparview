@@ -4,9 +4,9 @@ import akka.actor.ActorRef
 
 case class Join(newNode: ActorRef)
 
-case class ForwardJoin(newNode: ActorRef, ttl: Long, sender: ActorRef)
+case class ForwardJoin(newNode: ActorRef, ttl: Long)
 
-case class Disconnect(peer: ActorRef)
+object Disconnect
 
 case class Gossip(p: ActorRef, m: String, mid: String, myself: ActorRef)
 
