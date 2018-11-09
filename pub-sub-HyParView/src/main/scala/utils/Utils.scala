@@ -13,6 +13,10 @@ object Utils {
     //TODO
   }
 
+  def getDate = {
+    new Date()
+  }
+
   def md5(s: String) = {
     MessageDigest.getInstance("MD5").digest(s.getBytes)
   }
