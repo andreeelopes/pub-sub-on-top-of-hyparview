@@ -23,7 +23,6 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
   //  context.system.scheduler.schedule(interval = duration.Duration(Duration.Duration))
 
 
-
   def subscribe(topic: String) = {
     val dateTTL = Utils.getDatePlusTime(TTL)
     addToRadiusSubs(topic, self, dateTTL)
@@ -87,21 +86,67 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
 
 
   def receiveSub(subscribe: Subscribe) = {
+    if (!delivered.contains(subscribe.mid)) {
+
+      addToRadiusSubs(subscribe.topic, subscribe.subscriber, subscribe.dateTTL)
+      delivered ::= subscribe.mid
+
+      if (subscribe.subHops > 0) {
+        pendingSub ::= subscribe.copy(subHops = subscribe.subHops - 1)
+        membershipActor ! GetNeighbors
+      }
+
+    }
 
   }
 
   def receiveUnsub(unsubscribe: Unsubscribe) = {
+    if (!delivered.contains(unsubscribe.mid)) {
+      removeFromRadiusSubs(unsubscribe.topic, unsubscribe.unsubscriber)
+      delivered ::= unsubscribe.mid
+
+      if (unsubscribe.unsubHops > 0) {
+        pendingUnsub ::= unsubscribe.copy(unsubHops = unsubscribe.unsubHops - 1)
+        membershipActor ! GetNeighbors
+      }
+
+    }
 
   }
 
   def receivePub(publish: Publish) = {
+    if (!delivered.contains(publish.mid)) {
+      delivered ::= publish.mid
+
+      radiusSubsByTopic(publish.topic)
+        //.filter(p => p._2 > 0 && p._1.equals(self))
+        .foreach(p => p._1 ! PSDelivery(publish.topic, publish.message))
+
+      radiusSubsByTopic(publish.topic)
+        //.filter(p => p._2 > 0 && !p._1.equals(self))
+        .foreach(p => p._1 ! DirectMessage(publish.topic, publish.message, publish.mid))
+
+      if (publish.pubHops > 0) {
+        pendingPub ::= publish.copy(pubHops = publish.pubHops - 1)
+        membershipActor ! GetNeighbors
+      }
+
+    }
+
 
   }
 
+  //radiusSubsByProcess it is not necessary
   def receiveDirectMsg(directMessage: DirectMessage) = {
 
-  }
+    if (!delivered.contains(directMessage.mid)) {
+      delivered ::= directMessage.mid
+      radiusSubsByTopic(directMessage.topic)
+        //        .filter(p=> p._2 > 0 && p._1.equals(self))
+        .foreach(p => p._1 ! PSDelivery(directMessage.topic, directMessage.message))
+    }
 
+  }
 
   def renewSub() = {
     radiusSubsByProcess(self)
