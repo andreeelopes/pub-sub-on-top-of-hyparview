@@ -1,9 +1,10 @@
 package membership
 
 import akka.actor.{Actor, ActorRef}
+import utils.Utils
 
 
-class HyParViewActor(implicit n: Int, contactNode: ActorRef, pubSubActor: ActorRef) extends Actor {
+class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) extends Actor {
 
   var activeView = List[ActorRef]()
   var passiveView = List[ActorRef]()
@@ -19,7 +20,7 @@ class HyParViewActor(implicit n: Int, contactNode: ActorRef, pubSubActor: ActorR
   contactNode ! Join
 
 
-  def receive = {
+  override def receive = {
     case Join =>
       addNodeActView(sender)
       activeView.filter(n => n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
