@@ -8,13 +8,15 @@ case class ForwardJoin(newNode: ActorRef, ttl: Long)
 
 object Disconnect
 
-case class Gossip(m: String, mid: Array[Byte])
+case class Gossip[E](message: E)
 
-case class DeliverGossip(m: String)
+case class GenericGossipMsg(mid: Array[Byte])
 
-case class Neighbors(neighbors: List[ActorRef]) //TODO
+case class DeliverGossip[E](message: E)
 
-object GetNeighbors //TODO
+case class Neighbors(neighbors: List[ActorRef])
+
+object GetNeighbors
 
 
 
