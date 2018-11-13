@@ -3,10 +3,10 @@ package pubsub
 import java.util.Date
 
 import akka.actor.{Actor, ActorRef}
-import membership.{GetNeighbors, Gossip}
+import membership.{GetNeighbors, Gossip, Neighbors}
 import utils.Utils
 
-class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
+class PubSubActor(n: Int, membershipActor: ActorRef, testAppActor: ActorRef) extends Actor {
 
   val diameter = math.log(n * 10)
   var radiusSubsByTopic = Map[String, Set[(ActorRef, Date)]]()
@@ -47,7 +47,26 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
     membershipActor ! GetNeighbors
   }
 
-  def neighbors(newNeighbors: List[ActorRef]) = {
+
+  override def receive = {
+    case Subscribe(subscriber, topic, dateTTL, hops, mid) =>
+      receiveSub(Subscribe(subscriber, topic, dateTTL, hops, mid))
+
+    case Unsubscribe(unsubscriber, topic, hops, mid) =>
+      receiveUnsub(Unsubscribe(unsubscriber, topic, hops, mid))
+
+    case Publish(topic, hops, message, mid) =>
+      receivePub(Publish(topic, hops, message, mid))
+
+    case DirectMessage(topic, message, mid) =>
+      receiveDirectMsg(DirectMessage(topic, message, mid))
+
+    case Neighbors(neighbors) =>
+      receiveNeighbors(neighbors)
+  }
+
+
+  def receiveNeighbors(newNeighbors: List[ActorRef]) = {
     neighbors = newNeighbors
 
     pendingSub.foreach { s =>
@@ -69,23 +88,7 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
   }
 
 
-  override def receive = {
-    case Subscribe(subscriber, topic, dateTTL, hops, mid) =>
-      receiveSub(Subscribe(subscriber, topic, dateTTL, hops, mid))
-
-    case Unsubscribe(unsubscriber, topic, hops, mid) =>
-      receiveUnsub(Unsubscribe(unsubscriber, topic, hops, mid))
-
-    case Publish(topic, hops, message, mid) =>
-      receivePub(Publish(topic, hops, message, mid))
-
-    case DirectMessage(topic, message, mid) =>
-      receiveDirectMsg(DirectMessage(topic, message, mid))
-
-  }
-
-
-  def receiveSub(subscribe: Subscribe) = {
+  def receiveSub(subscribe: Subscribe) = { //TODO deliver my own message?
     if (!delivered.contains(subscribe.mid)) {
 
       addToRadiusSubs(subscribe.topic, subscribe.subscriber, subscribe.dateTTL)
@@ -120,7 +123,7 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
 
       radiusSubsByTopic(publish.topic)
         //.filter(p => p._2 > 0 && p._1.equals(self))
-        .foreach(p => p._1 ! PSDelivery(publish.topic, publish.message))
+        .foreach(p => testAppActor ! PSDelivery(publish.topic, publish.message))
 
       radiusSubsByTopic(publish.topic)
         //.filter(p => p._2 > 0 && !p._1.equals(self))
@@ -143,7 +146,7 @@ class PubSubActor(n: Int, membershipActor: ActorRef) extends Actor {
       delivered ::= directMessage.mid
       radiusSubsByTopic(directMessage.topic)
         //        .filter(p=> p._2 > 0 && p._1.equals(self))
-        .foreach(p => p._1 ! PSDelivery(directMessage.topic, directMessage.message))
+        .foreach(p => testAppActor ! PSDelivery(directMessage.topic, directMessage.message))
     }
 
   }
