@@ -43,14 +43,14 @@ class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) exten
         addNodePassView(sender)
       }
 
-    case Gossip(m, mid) =>
-      if (!receivedMsgs.contains(mid)) {
-        receivedMsgs ::= mid
+    case Gossip(message) =>
+      if (!receivedMsgs.contains(message.asInstanceOf[GenericGossipMsg].mid)) { //TODO highly dangerous
+        receivedMsgs ::= message.asInstanceOf[GenericGossipMsg].mid
 
-        pubSubActor ! DeliverGossip(m)
+        pubSubActor ! DeliverGossip(message)
 
         val peers = getPeers(f, sender)
-        peers.foreach(p => p ! Gossip(m, mid))
+        peers.foreach(p => p ! Gossip(message))
 
       }
 
