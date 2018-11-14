@@ -18,3 +18,6 @@ case class Start(contactNode: ActorRef, bcastActor: ActorRef)
 
 
 
+case class tcpDisconnectOrBlock()
+case class Neighbor(priority: Int)
+
