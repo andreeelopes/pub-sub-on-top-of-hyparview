@@ -18,3 +18,6 @@ case class Start(contactNode: Node, myNode: Node)
 
 
 
+case class tcpDisconnectOrBlock()
+case class Neighbor(priority: Int)
+
