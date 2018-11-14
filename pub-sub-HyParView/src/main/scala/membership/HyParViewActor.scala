@@ -25,13 +25,13 @@ class HyParViewActor extends Actor with ActorLogging {
       receiveStart(Start(_contactNode_, _bcastActor_))
 
     case Join =>
-      receiveJoin
+      receiveJoin()
 
     case ForwardJoin(newNode, ttl) =>
       receiveForwardJoin(ForwardJoin(newNode, ttl))
 
     case Disconnect =>
-      receiveDisconnect
+      receiveDisconnect()
 
     case GetNeighbors(n) =>
       receiveGetNeighbors(n)
@@ -51,14 +51,14 @@ class HyParViewActor extends Actor with ActorLogging {
 
   }
 
-  def receiveJoin(implicit sender: ActorRef) = {
+  def receiveJoin() = {
     log.info(s"Join from ${sender.path.name}")
 
     addNodeActView(sender)
     activeView.filter(n => !n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
   }
 
-  def receiveForwardJoin(forwardMsg: ForwardJoin)(implicit sender: ActorRef) = {
+  def receiveForwardJoin(forwardMsg: ForwardJoin) = {
     log.info(s"ForwardJoin from ${sender.path.name} with message: $forwardMsg")
 
     if (forwardMsg.ttl == 0 || activeView.size == 1)
@@ -73,7 +73,7 @@ class HyParViewActor extends Actor with ActorLogging {
     }
   }
 
-  def receiveDisconnect(implicit sender: ActorRef) = {
+  def receiveDisconnect() = {
     if (activeView.contains(sender)) {
       log.info(s"Disconect ${sender.path.name}")
 
@@ -83,7 +83,7 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def receiveGetNeighbors(n: Int) = {
-    val peersSample = getPeers(f)
+    val peersSample = getPeers(n)
 
     log.info(s"Returning GetNeighbors: $peersSample")
 

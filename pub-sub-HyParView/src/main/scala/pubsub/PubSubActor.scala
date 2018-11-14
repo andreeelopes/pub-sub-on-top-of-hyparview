@@ -16,7 +16,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   val pubHops = ((diameter + 1) / 2).toInt
   var delivered = Set[Array[Byte]]()
 
-
   val TTL = 30 //s
 
   var bcastActor: ActorRef = _
@@ -43,7 +42,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     case GossipDelivery(message) => message match {
 
-      case PassSubscribe(subscriber, topic, dateTTL, hops, mid) => //TODO mid it is not necessary
+      case PassSubscribe(subscriber, topic, dateTTL, hops, mid) =>
         receivePassSub(PassSubscribe(subscriber, topic, dateTTL, hops, mid))
 
       case PassUnsubscribe(unsubscriber, topic, hops, mid) =>
@@ -176,7 +175,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
 
   def cleanOldSubs() = {
-    radiusSubsByTopic = radiusSubsByTopic // TODO remove based on value
+    radiusSubsByTopic = radiusSubsByTopic.map(s => (s._1, s._2.filter(p => p._2.after(Utils.getDate))))
   }
 
 

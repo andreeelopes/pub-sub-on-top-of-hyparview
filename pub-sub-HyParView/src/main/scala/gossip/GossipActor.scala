@@ -3,12 +3,12 @@ package gossip
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import membership.{GetNeighbors, Neighbors}
 
-class GossipActor extends Actor with ActorLogging {
+class GossipActor(f: Int) extends Actor with ActorLogging {
 
   var neighbors = List[ActorRef]()
   var pending = List[Gossip]()
   var delivered = Set[Array[Byte]]()
-  val fanout = 3 //TODO pass as a message of HyParView?
+  val fanout = f //TODO pass as a message of HyParView?
 
   var membershipActor: ActorRef = _
   var pubSubActor: ActorRef = _
@@ -37,7 +37,7 @@ class GossipActor extends Actor with ActorLogging {
     pubSubActor = startMsg.pubSubActor
   }
 
-  def receiveGossip[E](gossipMsg: Gossip[E]): Unit = {
+  def receiveGossip(gossipMsg: Gossip): Unit = {
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 
@@ -52,7 +52,7 @@ class GossipActor extends Actor with ActorLogging {
 
   }
 
-  def receiveSend[E](sendMsg: Send[E]) = {
+  def receiveSend(sendMsg: Send) = {
     if (!delivered.contains(sendMsg.mid)) {
       delivered += sendMsg.mid
 

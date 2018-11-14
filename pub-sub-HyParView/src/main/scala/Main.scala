@@ -1,8 +1,8 @@
-import java.util.Date
 
-import akka.actor.{ActorRef, ActorSystem, Props}
-import membership.{Gossip, HyParViewActor}
-import pubsub.{PassSubscribe, PubSubActor, Subscribe}
+import akka.actor.{ActorSystem, Props}
+import gossip.{Gossip, GossipActor}
+import membership.HyParViewActor
+import pubsub.{PubSubActor, Publish, Subscribe}
 import testapp.TestAppActor
 
 object Main {
@@ -11,39 +11,47 @@ object Main {
     val nelson = ActorSystem("nelsonsystem")
     val simon = ActorSystem("simonsystem")
 
-    val pubsubA = andre.actorOf(Props(new PubSubActor(2)), "andrepubsub")
-    val membershipA = andre.actorOf(Props[HyParViewActor], "andremembership")
     val testAppA = andre.actorOf(Props[TestAppActor], "andretestapp")
+    val pubsubA = andre.actorOf(Props(new PubSubActor(2)), "andrepubsub")
+    val gossipA = andre.actorOf(Props(new GossipActor(3)), "andregossip")
+    val membershipA = andre.actorOf(Props[HyParViewActor], "andremembership")
 
-    val pubsubN = nelson.actorOf(Props(new PubSubActor(2)), "nelsonpubsub")
-    val membershipN = nelson.actorOf(Props[HyParViewActor], "nelsonmembership")
     val testAppN = nelson.actorOf(Props[TestAppActor], "nelsontestapp")
+    val pubsubN = nelson.actorOf(Props(new PubSubActor(2)), "nelsonpubsub")
+    val gossipN = andre.actorOf(Props(new GossipActor(3)), "nelsongossip")
+    val membershipN = nelson.actorOf(Props[HyParViewActor], "nelsonmembership")
 
-    val pubsubS = simon.actorOf(Props(new PubSubActor(2)), "simonpubsub")
-    val membershipS = simon.actorOf(Props[HyParViewActor], "simonmembership")
     val testAppS = nelson.actorOf(Props[TestAppActor], "simontestapp")
+    val pubsubS = simon.actorOf(Props(new PubSubActor(2)), "simonpubsub")
+    val gossipS = andre.actorOf(Props(new GossipActor(3)), "simongossip")
+    val membershipS = simon.actorOf(Props[HyParViewActor], "simonmembership")
 
 
     //Starting Andre System
-    pubsubA ! pubsub.Start(membershipA, testAppA)
-    membershipA ! membership.Start(null, pubsubA)
     testAppA ! testapp.Start(pubsubA)
+    pubsubA ! pubsub.Start(membershipA, testAppA)
+    gossipA ! gossip.Start(membershipA, pubsubA)
+    membershipA ! membership.Start(null, gossipA)
 
     //Starting Nelson System
-    pubsubN ! pubsub.Start(membershipN, testAppN)
-    membershipN ! membership.Start(membershipA, pubsubN)
     testAppN ! testapp.Start(pubsubN)
+    pubsubN ! pubsub.Start(membershipN, testAppN)
+    gossipN ! gossip.Start(membershipN, pubsubN)
+    membershipN ! membership.Start(membershipA, gossipN)
 
     //Starting Simon System
-    pubsubS ! pubsub.Start(membershipS, testAppS)
-    membershipS ! membership.Start(membershipN, pubsubS)
     testAppS ! testapp.Start(pubsubS)
+    pubsubS ! pubsub.Start(membershipS, testAppS)
+    gossipS ! gossip.Start(membershipS, pubsubS)
+    membershipS ! membership.Start(membershipN, gossipS)
 
     Thread.sleep(2000)
 
     testAppA ! Subscribe("futebol")
 
-    //    membershipA ! Gossip("olá".getBytes(), PassSubscribe(null, "futebol", null, 10, "olá".getBytes()))
+    testAppN ! Subscribe("futebol")
+
+    testAppS ! Publish("futebol", "eh caralho vivo bruno carvalho")
 
 
   }

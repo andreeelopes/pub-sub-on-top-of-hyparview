@@ -1,7 +1,7 @@
 package testapp
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import pubsub.{Publish, Subscribe, Unsubscribe}
+import pubsub.{PSDelivery, Publish, Subscribe, Unsubscribe}
 
 
 class TestAppActor extends Actor with ActorLogging {
@@ -23,6 +23,9 @@ class TestAppActor extends Actor with ActorLogging {
     case Publish(topic, m) =>
       log.info(s"Publishing ($topic): $m")
       pubSubActor ! Publish(topic, m)
+
+    case PSDelivery(topic, m) =>
+      log.info(s"Here's is something interesting for you about $topic:\n $m")
   }
 
 
