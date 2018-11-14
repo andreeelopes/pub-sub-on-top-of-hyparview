@@ -21,13 +21,8 @@ object Utils {
     MessageDigest.getInstance("MD5").digest(s.getBytes)
   }
 
-  def pickRandomN[A](list: List[A], n: Int, elem: A = null) = {
-    var auxList = list
-
-    if (elem != null)
-      auxList = list.filter(e => !e.equals(elem))
-
-    Random.shuffle(auxList).take(n)
+  def pickRandomN[A](list: List[A], n: Int) = {
+    Random.shuffle(list).take(n)
   }
 
 

@@ -2,17 +2,17 @@ package membership
 
 import akka.actor.ActorRef
 
-case class Join(newNode: ActorRef)
+object Join
 
 case class ForwardJoin(newNode: ActorRef, ttl: Long)
 
 object Disconnect
 
-case class Neighbors(neighbors: List[ActorRef])
+case class Neighbors(neighborsSample: List[ActorRef])
 
-object GetNeighbors
+case class GetNeighbors(n: Int)
 
-case class Start(contactNode: ActorRef, pubSubActor: ActorRef)
+case class Start(contactNode: ActorRef, bcastActor: ActorRef)
 
 
 

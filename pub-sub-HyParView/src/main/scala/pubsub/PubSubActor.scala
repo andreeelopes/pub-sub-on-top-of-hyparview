@@ -3,7 +3,7 @@ package pubsub
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import broadcast.Broadcast
+import gossip.{GossipDelivery, Gossip}
 import membership._
 import utils.Utils
 
@@ -14,11 +14,9 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   var mySubs = Map[String, Date]()
   val subHops = ((diameter + 1) / 2).toInt
   val pubHops = ((diameter + 1) / 2).toInt
-  var neighbors = List[ActorRef]()
   var delivered = Set[Array[Byte]]()
-  var pendingSub = List[PassSubscribe]()
-  var pendingUnsub = List[PassUnsubscribe]()
-  var pendingPub = List[PassPublish]()
+
+
   val TTL = 30 //s
 
   var bcastActor: ActorRef = _
@@ -43,9 +41,9 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     case Publish(topic, m) => publish(topic, m)
 
-    case Broadcast(mid, message) => message match {
+    case GossipDelivery(message) => message match {
 
-      case PassSubscribe(subscriber, topic, dateTTL, hops, mid) =>
+      case PassSubscribe(subscriber, topic, dateTTL, hops, mid) => //TODO mid it is not necessary
         receivePassSub(PassSubscribe(subscriber, topic, dateTTL, hops, mid))
 
       case PassUnsubscribe(unsubscriber, topic, hops, mid) =>
@@ -59,8 +57,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     case DirectMessage(topic, message, mid) =>
       receiveDirectMsg(DirectMessage(topic, message, mid))
 
-    case Neighbors(newNeighbors) =>
-      receiveNeighbors(newNeighbors)
   }
 
 
@@ -71,10 +67,8 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     val mid = Utils.md5("SUB" + topic + self + Utils.getDate)
 
     mySubs += (topic -> dateTTL)
-    delivered += mid
-    pendingSub ::= PassSubscribe(self, topic, dateTTL, subHops - 1, mid)
 
-    bcastActor ! GetNeighbors
+    bcastActor ! Gossip(mid, PassSubscribe(self, topic, dateTTL, subHops - 1, mid))
   }
 
   def unsubscribe(topic: String) = {
@@ -83,9 +77,8 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     val mid = Utils.md5("UNSUB" + topic + self + Utils.getDate)
 
     mySubs -= topic
-    delivered += mid
-    pendingUnsub ::= PassUnsubscribe(self, topic, subHops - 1, mid)
-    bcastActor ! GetNeighbors
+
+    bcastActor ! Gossip(mid, PassUnsubscribe(self, topic, subHops - 1, mid))
   }
 
   def publish(topic: String, m: String) = {
@@ -93,82 +86,65 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     val mid = Utils.md5("PUB" + topic + self + m + Utils.getDate)
 
-    delivered += mid
-    pendingPub ::= PassPublish(topic, pubHops - 1, m, mid)
-    bcastActor ! GetNeighbors
+    bcastActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
   }
 
 
   def receivePassSub(passSubscribe: PassSubscribe) = {
-    if (!delivered.contains(passSubscribe.mid)) {
 
-      log.info(s"Received passPub: $passSubscribe")
+    log.info(s"Received passPub: $passSubscribe")
 
-      val updatedSet = radiusSubsByTopic(passSubscribe.topic)
-        .filter(p => !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
+    val updatedSet = radiusSubsByTopic(passSubscribe.topic)
+      .filter(p => !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
 
-      radiusSubsByTopic = radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
+    radiusSubsByTopic = radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
 
 
-      if (passSubscribe.subHops > 0) {
-        pendingSub ::= passSubscribe.copy(subHops = passSubscribe.subHops - 1)
-        bcastActor ! GetNeighbors
-      }
-
-      log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
+    if (passSubscribe.subHops > 0) {
+      bcastActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
     }
+
+    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
 
   }
 
   def receivePassUnsub(passUnsubscribe: PassUnsubscribe) = {
-    if (!delivered.contains(passUnsubscribe.mid)) {
 
-      log.info(s"Received passUnsub: $passUnsubscribe")
+    log.info(s"Received passUnsub: $passUnsubscribe")
 
+    val updatedSet = radiusSubsByTopic(passUnsubscribe.topic).filter(p => !p._1.equals(passUnsubscribe.unsubscriber))
 
-      val updatedSet = radiusSubsByTopic(passUnsubscribe.topic).filter(p => !p._1.equals(passUnsubscribe.unsubscriber))
+    radiusSubsByTopic = radiusSubsByTopic.updated(passUnsubscribe.topic, updatedSet)
 
-      radiusSubsByTopic = radiusSubsByTopic.updated(passUnsubscribe.topic, updatedSet)
-
-      delivered += passUnsubscribe.mid
-
-      if (passUnsubscribe.unsubHops > 0) {
-        pendingUnsub ::= passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1)
-        bcastActor ! GetNeighbors
-      }
-
-      log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
-
+    if (passUnsubscribe.unsubHops > 0) {
+      bcastActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
     }
+
+    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
+
 
   }
 
   def receivePassPub(passPublish: PassPublish) = {
-    if (!delivered.contains(passPublish.mid)) {
 
-      log.info(s"Received PassPub: $passPublish")
-
-
-      delivered += passPublish.mid
-
-      val dateTTLOpt = mySubs.get(passPublish.topic)
-      if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
-        testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
+    log.info(s"Received PassPub: $passPublish")
 
 
-      radiusSubsByTopic(passPublish.topic)
-        .filter(p => p._2.after(Utils.getDate))
-        .foreach(p => p._1 ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+    val dateTTLOpt = mySubs.get(passPublish.topic)
+    if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
+      testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
 
-      if (passPublish.pubHops > 0) {
-        pendingPub ::= passPublish.copy(pubHops = passPublish.pubHops - 1)
-        bcastActor ! GetNeighbors
-      }
 
+    radiusSubsByTopic(passPublish.topic)
+      .filter(p => p._2.after(Utils.getDate))
+      .foreach(p => p._1 ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+
+    if (passPublish.pubHops > 0) {
+      bcastActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
     }
-    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
+    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
   }
 
@@ -189,31 +165,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   }
 
-  def receiveNeighbors(newNeighbors: List[ActorRef]) = {
-    neighbors = newNeighbors
-
-    log.info(s"pendingSub : $pendingPub")
-    log.info(s"pendingUnsub : $pendingUnsub")
-    log.info(s"pendingPub : $pendingPub")
-
-    pendingSub.foreach { sub =>
-      bcastActor ! Gossip(sub.mid, sub)
-    }
-
-    pendingUnsub.foreach { unsub =>
-      bcastActor ! Gossip(unsub.mid, unsub)
-    }
-
-    pendingPub.foreach { pub =>
-      bcastActor ! Gossip(pub.mid, pub)
-    }
-
-    pendingSub = List()
-    pendingSub = List()
-    pendingSub = List()
-
-  }
-
 
   def renewSub() = {
 
@@ -227,17 +178,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   def cleanOldSubs() = {
     radiusSubsByTopic = radiusSubsByTopic // TODO remove based on value
   }
-
-
-  //  def addToRadiusSubs(topic: String, process: ActorRef, ttl: Date) = {
-  //    radiusSubsByProcess += (process -> (topic, ttl))
-  //    radiusSubsByTopic += (topic -> (process, ttl))
-  //  }
-  //
-  //  def removeFromRadiusSubs(topic: String, process: ActorRef) = {
-  //    radiusSubsByTopic -= topic
-  //    radiusSubsByProcess(process) = radiusSubsByProcess(process).filter(p => !p._1.equals(topic))
-  //  }
 
 
 }

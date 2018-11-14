@@ -14,68 +14,80 @@ class HyParViewActor extends Actor with ActorLogging {
   val passViewMaxSize = 30 //TODO
 
   var receivedMsgs = List[Array[Byte]]()
-  val f = 3 //TODO
 
 
   var contactNode: ActorRef = _
-  var pubSubActor: ActorRef = _
+  var bcastActor: ActorRef = _
 
   override def receive = {
 
-    case Start(_contactNode_, _pubSubActor_) =>
-      log.info("Starting")
-
-      contactNode = _contactNode_
-      pubSubActor = _pubSubActor_
-
-      if (contactNode != null) {
-        addNodeActView(contactNode)
-        contactNode ! Join
-      }
-
+    case Start(_contactNode_, _bcastActor_) =>
+      receiveStart(Start(_contactNode_, _bcastActor_))
 
     case Join =>
-      log.info(s"Join from ${sender.path.name}")
-
-      addNodeActView(sender)
-      activeView.filter(n => !n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
+      receiveJoin
 
     case ForwardJoin(newNode, ttl) =>
-      log.info(s"ForwardJoin from ${sender.path.name} with message: ${ForwardJoin(newNode, ttl)}")
-
-      if (ttl == 0 || activeView.size == 1)
-        addNodeActView(newNode)
-      else {
-        if (ttl == PRWL)
-          addNodePassView(newNode)
-
-        val n = Utils.pickRandomN[ActorRef](activeView.filter(n => !n.equals(sender)), 1).head
-
-        n ! ForwardJoin(newNode, ttl - 1)
-      }
+      receiveForwardJoin(ForwardJoin(newNode, ttl))
 
     case Disconnect =>
-      if (activeView.contains(sender)) {
-        log.info(s"Disconect ${sender.path.name}")
+      receiveDisconnect
 
-        activeView = activeView.filter(n => !n.equals(sender))
-        addNodePassView(sender)
-      }
+    case GetNeighbors(n) =>
+      receiveGetNeighbors(n)
 
-    case Gossip(mid, message) =>
-      if (!receivedMsgs.contains(mid)) {
-        receivedMsgs ::= mid
+  }
 
-        log.info(s"Delivered gossip message: $message")
+  def receiveStart(startMsg: Start) = {
+    log.info("Starting")
 
-        pubSubActor ! DeliverGossip(message)
+    contactNode = startMsg.contactNode
+    bcastActor = startMsg.bcastActor
 
-        val peers = getPeers(f, sender)
-        peers.foreach(p => p ! Gossip(mid, message))
+    if (contactNode != null) {
+      addNodeActView(contactNode)
+      contactNode ! Join
+    }
 
-      }
+  }
 
+  def receiveJoin(implicit sender: ActorRef) = {
+    log.info(s"Join from ${sender.path.name}")
 
+    addNodeActView(sender)
+    activeView.filter(n => !n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
+  }
+
+  def receiveForwardJoin(forwardMsg: ForwardJoin)(implicit sender: ActorRef) = {
+    log.info(s"ForwardJoin from ${sender.path.name} with message: $forwardMsg")
+
+    if (forwardMsg.ttl == 0 || activeView.size == 1)
+      addNodeActView(forwardMsg.newNode)
+    else {
+      if (forwardMsg.ttl == PRWL)
+        addNodePassView(forwardMsg.newNode)
+
+      val n = Utils.pickRandomN[ActorRef](activeView.filter(n => !n.equals(sender)), 1).head
+
+      n ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1)
+    }
+  }
+
+  def receiveDisconnect(implicit sender: ActorRef) = {
+    if (activeView.contains(sender)) {
+      log.info(s"Disconect ${sender.path.name}")
+
+      activeView = activeView.filter(n => !n.equals(sender))
+      addNodePassView(sender)
+    }
+  }
+
+  def receiveGetNeighbors(n: Int) = {
+    val peersSample = getPeers(f)
+
+    log.info(s"Returning GetNeighbors: $peersSample")
+
+    bcastActor ! Neighbors(peersSample)
   }
 
   def dropRandomElemActView() = {
@@ -112,9 +124,9 @@ class HyParViewActor extends Actor with ActorLogging {
 
   }
 
-  def getPeers(f: Int, sender: ActorRef = null) = {
+  def getPeers(f: Int) = {
     log.info(s"Get peers to gossip")
-    Utils.pickRandomN[ActorRef](activeView, f, sender)
+    Utils.pickRandomN[ActorRef](activeView, f)
   }
 
 
