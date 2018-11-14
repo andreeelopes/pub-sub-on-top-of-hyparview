@@ -3,10 +3,12 @@ package gossip
 import akka.actor.ActorRef
 
 
-case class Gossip[E](mid: Array[Byte], message: E)
+case class Gossip[A](mid: Array[Byte], message: A)
 
-case class GossipDelivery[E](message: E)
+case class GossipDelivery[A](message: A)
 
-case class Send[E](mid: Array[Byte], message: E)
+case class Send[A](mid: Array[Byte], message: A)
 
 case class Start(membershipActor: ActorRef, pubSubActor: ActorRef)
+
+case class PassGossip[A](mid: Array[Byte], message: A)

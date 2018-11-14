@@ -20,4 +20,4 @@ case class DirectMessage(topic: String, message: String, mid: Array[Byte])
 
 case class PSDelivery(topic: String, m: String)
 
-case class Start(membershipActor: ActorRef, testAppActor: ActorRef)
+case class Start(bcastActor: ActorRef, testAppActor: ActorRef)

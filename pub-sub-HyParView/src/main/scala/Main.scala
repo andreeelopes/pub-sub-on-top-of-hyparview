@@ -1,8 +1,8 @@
 
 import akka.actor.{ActorSystem, Props}
-import gossip.{Gossip, GossipActor}
+import gossip.{GossipActor}
 import membership.HyParViewActor
-import pubsub.{PubSubActor, Publish, Subscribe}
+import pubsub.{PubSubActor, Subscribe}
 import testapp.TestAppActor
 
 object Main {
@@ -29,29 +29,25 @@ object Main {
 
     //Starting Andre System
     testAppA ! testapp.Start(pubsubA)
-    pubsubA ! pubsub.Start(membershipA, testAppA)
+    pubsubA ! pubsub.Start(gossipA, testAppA)
     gossipA ! gossip.Start(membershipA, pubsubA)
     membershipA ! membership.Start(null, gossipA)
 
     //Starting Nelson System
     testAppN ! testapp.Start(pubsubN)
-    pubsubN ! pubsub.Start(membershipN, testAppN)
+    pubsubN ! pubsub.Start(gossipN, testAppN)
     gossipN ! gossip.Start(membershipN, pubsubN)
     membershipN ! membership.Start(membershipA, gossipN)
 
     //Starting Simon System
     testAppS ! testapp.Start(pubsubS)
-    pubsubS ! pubsub.Start(membershipS, testAppS)
+    pubsubS ! pubsub.Start(gossipS, testAppS)
     gossipS ! gossip.Start(membershipS, pubsubS)
     membershipS ! membership.Start(membershipN, gossipS)
 
-    Thread.sleep(2000)
+    Thread.sleep(1000)
 
     testAppA ! Subscribe("futebol")
-
-    testAppN ! Subscribe("futebol")
-
-    testAppS ! Publish("futebol", "eh caralho vivo bruno carvalho")
 
 
   }

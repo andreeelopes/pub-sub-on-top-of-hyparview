@@ -3,17 +3,16 @@ package pubsub
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import gossip.{GossipDelivery, Gossip}
-import membership._
+import gossip.{Gossip, GossipDelivery}
 import utils.Utils
 
 class PubSubActor(n: Int) extends Actor with ActorLogging {
 
-  val diameter = math.log(n * 10)
+  val diameter = math.log(n * 10).toInt
   var radiusSubsByTopic = Map[String, Set[(ActorRef, Date)]]()
   var mySubs = Map[String, Date]()
-  val subHops = ((diameter + 1) / 2).toInt
-  val pubHops = ((diameter + 1) / 2).toInt
+  val subHops = (diameter + 1) / 2
+  val pubHops = (diameter + 1) / 2
   var delivered = Set[Array[Byte]]()
 
   val TTL = 30 //s
@@ -27,7 +26,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   override def receive = {
 
-    case Start(_broadcastActor_, _testAppActor_) =>
+    case pubsub.Start(_broadcastActor_, _testAppActor_) =>
 
       log.info(s"Starting: diameter - $diameter ; subHops - $subHops")
 
@@ -93,11 +92,16 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     log.info(s"Received passPub: $passSubscribe")
 
-    val updatedSet = radiusSubsByTopic(passSubscribe.topic)
-      .filter(p => !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
+    val setOpt = radiusSubsByTopic.get(passSubscribe.topic)
 
-    radiusSubsByTopic = radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
+    radiusSubsByTopic =
+      if (setOpt.isDefined) {
+        val updatedSet = setOpt.get.filter(p => !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
 
+        radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
+      } else {
+        radiusSubsByTopic + (passSubscribe.topic -> Set((passSubscribe.subscriber, passSubscribe.dateTTL)))
+      }
 
     if (passSubscribe.subHops > 0) {
       bcastActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))

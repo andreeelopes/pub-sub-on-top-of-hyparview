@@ -6,7 +6,7 @@ import membership.{GetNeighbors, Neighbors}
 class GossipActor(f: Int) extends Actor with ActorLogging {
 
   var neighbors = List[ActorRef]()
-  var pending = List[Gossip]()
+  var pending = Map[Array[Byte], Object]()
   var delivered = Set[Array[Byte]]()
   val fanout = f //TODO pass as a message of HyParView?
 
@@ -19,6 +19,9 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
       receiveStart(Start(_membershipActor_, _pubSubActor_))
 
     case Gossip(mid, msg) =>
+      receiveGossip(Gossip(mid, msg), firstTime = true)
+
+    case PassGossip(mid, msg) =>
       receiveGossip(Gossip(mid, msg))
 
     case Neighbors(neighborsSample) =>
@@ -37,22 +40,24 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     pubSubActor = startMsg.pubSubActor
   }
 
-  def receiveGossip(gossipMsg: Gossip): Unit = {
+  def receiveGossip[A](gossipMsg: Gossip[A], firstTime: Boolean = false): Unit = {
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 
-      log.info(s"Delivered gossip message: $gossipMsg")
 
-      pubSubActor ! GossipDelivery(gossipMsg.message)
+      if (!firstTime) {
+        log.info(s"Delivered gossip message: $gossipMsg")
+        pubSubActor ! GossipDelivery(gossipMsg.message)
+      }
 
-      pending ::= gossipMsg
+      pending += (gossipMsg.mid -> gossipMsg)
 
       membershipActor ! GetNeighbors(fanout)
     }
 
   }
 
-  def receiveSend(sendMsg: Send) = {
+  def receiveSend[A](sendMsg: Send[A]) = {
     if (!delivered.contains(sendMsg.mid)) {
       delivered += sendMsg.mid
 
@@ -63,18 +68,18 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
   }
 
 
-  def receiveNeighbors(newNeighbors: List[ActorRef]) = {
+  def receiveNeighbors[A](newNeighbors: List[ActorRef]) = {
     neighbors = newNeighbors
 
-    log.info(s"pending : $pending")
-
     pending.foreach { msg =>
-      newNeighbors.foreach { neighbor =>
-        neighbor ! Send(msg.mid, msg)
+      neighbors.foreach { neighbor =>
+        neighbor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
+        //TODO neighbors são actores da camada de baixo e não desta
+        //possível solução será manter sempre o par pubsub/membership
       }
     }
 
-    pending = List()
+    pending = Map()
   }
 
 
