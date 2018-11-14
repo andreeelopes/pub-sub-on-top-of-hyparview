@@ -1,10 +1,10 @@
 package membership
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{Actor, ActorLogging, ActorRef}
 import utils.Utils
 
 
-class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) extends Actor {
+class HyParViewActor extends Actor with ActorLogging {
 
   var activeView = List[ActorRef]()
   var passiveView = List[ActorRef]()
@@ -16,16 +16,33 @@ class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) exten
   var receivedMsgs = List[Array[Byte]]()
   val f = 3 //TODO
 
-  addNodeActView(contactNode)
-  contactNode ! Join
 
+  var contactNode: ActorRef = _
+  var pubSubActor: ActorRef = _
 
   override def receive = {
+
+    case Start(_contactNode_, _pubSubActor_) =>
+      log.info("Starting")
+
+      contactNode = _contactNode_
+      pubSubActor = _pubSubActor_
+
+      if (contactNode != null) {
+        addNodeActView(contactNode)
+        contactNode ! Join
+      }
+
+
     case Join =>
+      log.info(s"Join from ${sender.path.name}")
+
       addNodeActView(sender)
-      activeView.filter(n => n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
+      activeView.filter(n => !n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
 
     case ForwardJoin(newNode, ttl) =>
+      log.info(s"ForwardJoin from ${sender.path.name} with message: ${ForwardJoin(newNode, ttl)}")
+
       if (ttl == 0 || activeView.size == 1)
         addNodeActView(newNode)
       else {
@@ -39,18 +56,22 @@ class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) exten
 
     case Disconnect =>
       if (activeView.contains(sender)) {
+        log.info(s"Disconect ${sender.path.name}")
+
         activeView = activeView.filter(n => !n.equals(sender))
         addNodePassView(sender)
       }
 
-    case Gossip(message) =>
-      if (!receivedMsgs.contains(message.asInstanceOf[GenericGossipMsg].mid)) { //TODO highly dangerous
-        receivedMsgs ::= message.asInstanceOf[GenericGossipMsg].mid
+    case Gossip(mid, message) =>
+      if (!receivedMsgs.contains(mid)) {
+        receivedMsgs ::= mid
+
+        log.info(s"Delivered gossip message: $message")
 
         pubSubActor ! DeliverGossip(message)
 
         val peers = getPeers(f, sender)
-        peers.foreach(p => p ! Gossip(message))
+        peers.foreach(p => p ! Gossip(mid, message))
 
       }
 
@@ -62,13 +83,17 @@ class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) exten
     n ! Disconnect
     activeView = activeView.filter(elem => !elem.equals(n))
     passiveView ::= n
+
+    log.info(s"Dropped ${n.path.name} from active view and added it to the passive")
   }
 
   def addNodeActView(node: ActorRef) = {
     if (!node.equals(self) && !activeView.contains(node)) {
       if (activeView.size == actViewMaxSize)
         dropRandomElemActView()
-      activeView ::= activeView
+      log.info(s"Adding ${node.path.name} to active view")
+      activeView ::= node
+      log.info(s" ActiveView: ${activeView.toString()} ; size: ${activeView.size}")
     }
 
   }
@@ -79,12 +104,16 @@ class HyParViewActor(n: Int, contactNode: ActorRef, pubSubActor: ActorRef) exten
         val n = Utils.pickRandomN[ActorRef](activeView, 1).head
         passiveView = passiveView.filter(elem => !elem.equals(n))
       }
-      passiveView ::= passiveView
+      log.info(s"Adding ${node.path.name} to passive view")
+      log.info(s" Passive View: ${passiveView.toString()}")
+
+      passiveView ::= node
     }
 
   }
 
   def getPeers(f: Int, sender: ActorRef = null) = {
+    log.info(s"Get peers to gossip")
     Utils.pickRandomN[ActorRef](activeView, f, sender)
   }
 
