@@ -1,8 +1,7 @@
 package membership
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import utils.{Node, Utils}
-
 
 class HyParViewActor extends Actor with ActorLogging {
 
@@ -35,8 +34,11 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   //TODO nelson gestao da active view
-  def attemptActiveViewNodeReplacement(filterOut: ActorRef) = {
+  def attemptActiveViewNodeReplacement(filterOut: ActorRef): Boolean = {
     var q: ActorRef = null
+
+    if (passiveView.isEmpty)
+      return false
 
     if (filterOut == null) {
       q = Utils.pickRandomN(passiveView, 1).head
@@ -52,7 +54,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
     if (status == TcpUnsuccessful) {
       dropNodeFromPassiveView(q)
-      //attemptActiveViewNodeReplacement(null) TODO recursao?
+      attemptActiveViewNodeReplacement(null) //TODO recursao?
     }
     else {
       if (activeView.isEmpty)
@@ -60,6 +62,7 @@ class HyParViewActor extends Actor with ActorLogging {
       else
         priority = LowPriority
       //TCPSend(q | NEIGHBOR, myself, priority) TODO
+      return true
     }
   }
 
@@ -130,7 +133,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
       }
 
-    case ShuffleReply(passiveViewSample : List[ActorRef]) =>
+    case ShuffleReply(passiveViewSample: List[ActorRef]) =>
       mergePassiveView(exchangeList) //TODO
 
 
