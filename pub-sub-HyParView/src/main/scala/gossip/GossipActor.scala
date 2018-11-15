@@ -30,6 +30,8 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     case s@Send(_, _) =>
       receiveSend(s)
 
+
+
   }
 
 
@@ -59,8 +61,6 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     if (!delivered.contains(sendMsg.mid)) {
       delivered += sendMsg.mid
 
-      log.info(sendMsg.toString)
-
       myNode.pubSubActor ! GossipDelivery(sendMsg.message)
     }
   }
@@ -71,6 +71,8 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
     pending.foreach { msg =>
       neighbors.foreach { node =>
+        log.info(s"Sending to $node gossip message: ${Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)}")
+
         node.gossipActor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
       }
     }

@@ -51,7 +51,7 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def receiveJoin(joinMsg: Join) = {
-    log.info(joinMsg.toString)
+    log.info(s"Receiving: ${joinMsg.toString}")
 
     addNodeActView(joinMsg.newNode)
     activeView.filter(n => !n.equals(joinMsg.newNode))
@@ -59,7 +59,7 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def receiveForwardJoin(forwardMsg: ForwardJoin) = {
-    log.info(forwardMsg.toString)
+    log.info(s"Receiving: ${forwardMsg.toString}")
 
     if (forwardMsg.ttl == 0 || activeView.size == 1)
       addNodeActView(forwardMsg.newNode)
@@ -75,7 +75,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
   def receiveDisconnect(disconnectMsg: Disconnect) = {
     if (activeView.contains(disconnectMsg.node)) {
-      log.info(disconnectMsg.toString)
+      log.info(s"Receiving: ${disconnectMsg.toString}")
 
       activeView = activeView.filter(n => !n.equals(disconnectMsg.node))
       addNodePassView(disconnectMsg.node)

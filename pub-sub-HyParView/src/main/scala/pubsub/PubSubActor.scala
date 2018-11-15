@@ -1,6 +1,6 @@
 package pubsub
 
-import java.util.Date
+import java.util.{Calendar, Date}
 
 import akka.actor.{Actor, ActorLogging}
 import gossip.{Gossip, GossipDelivery}
@@ -15,7 +15,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   val pubHops = (diameter + 1) / 2
   var delivered = Set[Array[Byte]]()
 
-  val TTL = 30 //s
+  val TTL = 30
 
   var myNode: Node = _
 
@@ -60,6 +60,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     log.info(s"Received subscribing $topic")
 
     val dateTTL = Utils.getDatePlusTime(TTL)
+
     val mid = Utils.md5("SUB" + topic + myNode + Utils.getDate)
 
     mySubs += (topic -> dateTTL)
@@ -133,8 +134,10 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
 
     val dateTTLOpt = mySubs.get(passPublish.topic)
-    if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
+    if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate)) {
       myNode.testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
+      delivered += passPublish.mid //TODO martelanço
+    }
 
     val setOpt = radiusSubsByTopic.get(passPublish.topic)
     if (setOpt.isDefined) {
@@ -142,6 +145,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
         .foreach(p => p._1.pubSubActor ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
     }
 
+    //TODO dont do gossip for the ones that we sent DirectMessage
     if (passPublish.pubHops > 0) {
       myNode.gossipActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
     }
@@ -170,7 +174,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   def renewSub() = {
 
-    mySubs.filter(sub => sub._2.before(Utils.getDate)) //*0.2
+    mySubs.filter(sub => sub._2.before(Utils.getDate)) //TODO *0.2
       .foreach(sub => subscribe(sub._1))
 
     mySubs = mySubs.map(sub => (sub._1, Utils.getDatePlusTime(TTL)))

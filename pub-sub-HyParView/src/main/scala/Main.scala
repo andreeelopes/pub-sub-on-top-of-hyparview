@@ -57,10 +57,11 @@ object Main {
     membershipS ! membership.Start(nelsonNode, simonNode)
 
     Thread.sleep(1000)
-
+    println("\n\n ---Andre subscribing futebol--- \n\n")
     testAppA ! Subscribe("futebol")
-    Thread.sleep(1000)
 
+    Thread.sleep(1000)
+    println("\n\n ---Nelson publishing futebol--- \n\n")
     testAppN ! Publish("futebol", "o bruno de carvalho é uma besta")
 
 

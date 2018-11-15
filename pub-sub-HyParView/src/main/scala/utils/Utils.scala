@@ -1,20 +1,21 @@
 package utils
 
 import java.security.MessageDigest
-import java.util.Date
+import java.util.{Calendar, Date}
 
 import scala.util.Random
 
 object Utils {
 
 
-  def getDatePlusTime(TTL: Long) = {
-    new Date(System.currentTimeMillis())
-    //TODO
+  def getDatePlusTime(TTL: Int) = {
+    val now = Calendar.getInstance()
+    now.add(Calendar.SECOND, TTL)
+    now.getTime
   }
 
   def getDate = {
-    new Date()
+    Calendar.getInstance().getTime
   }
 
   def md5(s: String) = {
