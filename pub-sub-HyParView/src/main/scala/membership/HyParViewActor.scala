@@ -1,11 +1,20 @@
 package membership
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.io.Tcp.{CommandFailed, Connect}
+import tcp.TcpClient
 import utils.{Node, Utils}
+
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 class HyParViewActor extends Actor with ActorLogging {
 
-  var activeView = List[Node]()
+  var activeView = Map[Node, TcpClient]()
+  var pendingActiveView = Map[Node, TcpClient]() //necessary for implementation
   var passiveView = List[Node]()
   val ARWL = 6
   val PRWL = 3
@@ -26,97 +35,32 @@ class HyParViewActor extends Actor with ActorLogging {
   //Passive View Management variables
   val Ka = 1 //TODO
   val Kp = 1 //TODO
-
+  val timeToLive = 3 //TODO
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(20, TimeUnit.SECONDS), self, PassiveViewCyclicCheck) //TODO criar a msg PassiveViewCyclicCheck
 
   //TODO nelson gestao da active view
-  def dropNodeFromPassiveView(q: ActorRef) = {
+  def dropNodeFromPassiveView(q: Node) = {
     passiveView.filter(node => !node.equals(q))
   }
 
   //TODO nelson gestao da active view
-  def attemptActiveViewNodeReplacement(filterOut: ActorRef): Boolean = {
-    var q: ActorRef = null
-
-    if (passiveView.isEmpty)
-      return false
+  def attemptActiveViewNodeReplacement(filterOut: Node) = {
+    var q: Node = null
 
     if (filterOut == null) {
       q = Utils.pickRandomN(passiveView, 1).head
     }
     else {
-      q = Utils.pickRandomN(passiveView.filter(node => !node.equals(sender)), 1).head
+      q = Utils.pickRandomN(passiveView.filter(node => !node.equals(sender)), 1).head //TODO substituir sende rpo node
     }
-
-
-    var status = TcpSuccess
-    //TODO tentar estabelecer conexao
-    var priority = -1
-
-    if (status == TcpUnsuccessful) {
-      dropNodeFromPassiveView(q)
-      attemptActiveViewNodeReplacement(null) //TODO recursao?
-    }
-    else {
-      if (activeView.isEmpty)
-        priority = HighPriority
-      else
-        priority = LowPriority
-      //TCPSend(q | NEIGHBOR, myself, priority) TODO
-      return true
-    }
+    addNodePendingActView(q)//because of implementation
   }
 
-  //Active View Management variables
-  val TcpUnsuccessful = 0
-  val TcpSuccess = 1
-  val HighPriority = 2
-  val LowPriority = 3
-  //Passive View Management variables
-  val Ka = 1 //TODO
-  val Kp = 1 //TODO
-
-
-  //TODO nelson gestao da active view
-  def dropNodeFromPassiveView(q: ActorRef) = {
-    passiveView.filter(node => !node.equals(q))
-  }
-
-  //TODO nelson gestao da active view
-  def attemptActiveViewNodeReplacement(filterOut: ActorRef): Boolean = {
-    var q: ActorRef = null
-
-    if (passiveView.isEmpty)
-      return false
-
-    if (filterOut == null) {
-      q = Utils.pickRandomN(passiveView, 1).head
-    }
-    else {
-      q = Utils.pickRandomN(passiveView.filter(node => !node.equals(sender)), 1).head
-    }
-
-
-    var status = TcpSuccess
-    //TODO tentar estabelecer conexao
-    var priority = -1
-
-    if (status == TcpUnsuccessful) {
-      dropNodeFromPassiveView(q)
-      attemptActiveViewNodeReplacement(null) //TODO recursao?
-    }
-    else {
-      if (activeView.isEmpty)
-        priority = HighPriority
-      else
-        priority = LowPriority
-      //TCPSend(q | NEIGHBOR, myself, priority) TODO
-      return true
-    }
-  }
 
   override def receive = {
 
-    case s@Start(_, _) =>
+    case s@Start(_, _, _) =>
       receiveStart(s)
 
     case j@Join(_) =>
@@ -131,43 +75,71 @@ class HyParViewActor extends Actor with ActorLogging {
     case GetNeighbors(n) =>
       receiveGetNeighbors(n)
 
+    case TcpSuccess(node : Node) =>
+      var priority = -1
+      if (activeView.isEmpty)
+        priority = HighPriority
+      else
+        priority = LowPriority
+      var tcpClient = pendingActiveView(node)
+      tcpClient ! NeighborMsg(myNode, priority) //TCPSend(q | NEIGHBOR, myself, priority)
+
+    case TcpFailed(node : Node) =>
+      dropNodePendingActView(node)//because of implementation
+
+      dropNodeFromPassiveView(node)
+      attemptActiveViewNodeReplacement(null)
+
+    case CommandFailed(_: Connect) ⇒ //TODO
 
     //TODO nelson gestao da active view
-    case tcpDisconnectOrBlocking =>
+    case tcpDisconnectOrBlocking => //TODO - por a mensagem certa
       attemptActiveViewNodeReplacement(null)
 
 
-    case Neighbor(priority) =>
+    case Neighbor(node, priority) =>
       if (priority == HighPriority)
-        addNodeActView(sender)
+        addNodeActView(node)
       else {
-        if (activeView.length != actViewMaxSize) {
-          addNodeActView(sender)
-          //send pela conexao tcp ja aberta NeigborAccept
+        addNodePendingActView(node)
+        var tcpClient = pendingActiveView(node)
+
+        if (activeView.size != actViewMaxSize) {
+          tcpClient ! NeighborAccept(myNode)
+          dropNodePendingActView(node)
+          addNodeActView(node)
         }
-        else
-        //send pela conexao tcp ja aberta NeighborReject
+        else{
+          tcpClient ! NeighborReject(myNode)
+          dropNodePendingActView(node)
+        }
       }
 
-    case NeighborAccept =>
-      dropNodeFromPassiveView(sender)
-      addNodeActView(sender)
+    case NeighborAccept(node : Node) =>
+      dropNodeFromPassiveView(node)
+      dropNodePendingActView(node)
+      addNodeActView(node)
 
-    case NeighborReject =>
-      attemptActiveViewNodeReplacement(sender)
+    case NeighborReject(node: Node) =>
+      dropNodePendingActView(node)
+      attemptActiveViewNodeReplacement(node)
+
+
 
     //TODO nelson gestao da passive view
     case PassiveViewCyclicCheck =>
-      val q: ActorRef = Utils.pickRandomN(passiveView, 1).head
+      val q: Node = Utils.pickRandomN(passiveView, 1).head
       //TODO sera da passive view ou da active view, o paper nao e explicito
-      val exchangeList = List(self,
+      val exchangeList = List(myNode,
         Utils.pickRandomN(passiveView, Kp),
-        Utils.pickRandomN(activeView, Ka))
-    //TCP(q | SHUFFLE, exchangeList, timeToLive)
+        Utils.pickRandomN(activeView.keys.toList, Ka))
+      addNodePendingActView(q)
+      var tcpClient = pendingActiveView(q)
+      tcpClient ! Shuffle(exchangeList, timeToLive)
 
     case Shuffle(exchangeList: List[ActorRef], timeToLive: Int) =>
       timeToLive -= 1
-      if (timeToLive > 0 && activeView.length > 1) {
+      if (timeToLive > 0 && activeView.size > 1) {
         val peer = Utils.pickRandomN(active.filter(node => !node.equals(sender)), 1).head
         //TODO - random walk nao e uma chamada ao TCP?
         TCP(peer | Shuffle, exchangeList, timeToLive)
@@ -248,12 +220,13 @@ class HyParViewActor extends Actor with ActorLogging {
     log.info(s"Dropped $n from active view and added it to the passive")
   }
 
-  def addNodeActView(newNode: Node) = {
+  def addNodeActView(newNode: Node) = { //TODO - talvez seja melhor verificar se existe no pendingActView o new node e remover de la para nao existir duas ligacoes para o mesmo gajo
     if (!newNode.equals(myNode) && !activeView.contains(newNode)) {
       if (activeView.size == actViewMaxSize)
         dropRandomElemActView()
       log.info(s"Adding $newNode to active view")
-      activeView ::= newNode
+      val tcpClient = context.system.actorOf(Props(new TcpClient(newNode.address, self)))
+      activeView += (newNode -> tcpClient)//because of implementation
       log.info(s" ActiveView: ${activeView.toString()} ; size: ${activeView.size}")
     }
 
@@ -279,4 +252,12 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
 
+  def addNodePendingActView(newNode: Node): Unit ={
+    val tcpClient = context.system.actorOf(Props(new TcpClient(newNode.address, self)))
+    pendingActiveView += (newNode -> tcpClient)//because of implementation
+  }
+
+  def dropNodePendingActView(node: Node): Unit ={
+    pendingActiveView -= node
+  }
 }

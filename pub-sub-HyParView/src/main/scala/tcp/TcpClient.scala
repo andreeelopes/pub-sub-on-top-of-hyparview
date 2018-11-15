@@ -5,12 +5,12 @@ import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import java.net.InetSocketAddress
 
-object Client {
+object TcpClient {
   def props(remote: InetSocketAddress, replies: ActorRef) =
     Props(classOf[Client], remote, replies)
 }
 
-class Client(remote: InetSocketAddress, listener: ActorRef) extends Actor with ActorLogging{
+class TcpClient(remote: InetSocketAddress, listener: ActorRef) extends Actor with ActorLogging{
 
   import Tcp._
   import context.system

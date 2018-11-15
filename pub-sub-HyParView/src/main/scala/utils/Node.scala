@@ -1,8 +1,12 @@
 package utils
 
-import akka.actor.ActorRef
+import java.net.InetSocketAddress
 
-case class Node(name: String, testAppActor: ActorRef, pubSubActor: ActorRef, gossipActor: ActorRef, membershipActor: ActorRef) {
+import akka.actor.ActorRef
+import tcp.TcpServer
+
+case class Node(name: String, testAppActor: ActorRef, pubSubActor: ActorRef, gossipActor: ActorRef, membershipActor: ActorRef,
+                address: InetSocketAddress) {
   override def toString = name
 }
 
