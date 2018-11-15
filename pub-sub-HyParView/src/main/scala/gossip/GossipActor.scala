@@ -1,3 +1,4 @@
+/*
 package gossip
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
@@ -84,3 +85,4 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
 
 }
+*/
