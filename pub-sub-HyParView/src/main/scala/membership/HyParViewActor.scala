@@ -66,6 +66,54 @@ class HyParViewActor extends Actor with ActorLogging {
     }
   }
 
+  //Active View Management variables
+  val TcpUnsuccessful = 0
+  val TcpSuccess = 1
+  val HighPriority = 2
+  val LowPriority = 3
+  //Passive View Management variables
+  val Ka = 1 //TODO
+  val Kp = 1 //TODO
+
+
+  //TODO nelson gestao da active view
+  def dropNodeFromPassiveView(q: ActorRef) = {
+    passiveView.filter(node => !node.equals(q))
+  }
+
+  //TODO nelson gestao da active view
+  def attemptActiveViewNodeReplacement(filterOut: ActorRef): Boolean = {
+    var q: ActorRef = null
+
+    if (passiveView.isEmpty)
+      return false
+
+    if (filterOut == null) {
+      q = Utils.pickRandomN(passiveView, 1).head
+    }
+    else {
+      q = Utils.pickRandomN(passiveView.filter(node => !node.equals(sender)), 1).head
+    }
+
+
+    var status = TcpSuccess
+    //TODO tentar estabelecer conexao
+    var priority = -1
+
+    if (status == TcpUnsuccessful) {
+      dropNodeFromPassiveView(q)
+      attemptActiveViewNodeReplacement(null) //TODO recursao?
+    }
+    else {
+      if (activeView.isEmpty)
+        priority = HighPriority
+      else
+        priority = LowPriority
+      //TCPSend(q | NEIGHBOR, myself, priority) TODO
+      return true
+    }
+  }
+
   override def receive = {
 
     case s@Start(_, _) =>
