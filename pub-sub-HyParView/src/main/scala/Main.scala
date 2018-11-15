@@ -2,7 +2,7 @@
 import akka.actor.{ActorSystem, Props}
 import gossip.GossipActor
 import membership.HyParViewActor
-import pubsub.{PubSubActor, Publish, Subscribe}
+import pubsub.{PubSubActor, Publish, Subscribe, Unsubscribe}
 import testapp.TestAppActor
 import utils.{Node, Start}
 
@@ -64,6 +64,14 @@ object Main {
     println("\n\n ---Nelson publishing futebol--- \n\n")
     testAppN ! Publish("futebol", "o bruno de carvalho é uma besta")
 
+    Thread.sleep(1000)
+    println("\n\n ---Andre unsubscribing futebol--- \n\n")
+    testAppA ! Unsubscribe("futebol")
+
+
+    Thread.sleep(40000)
+    println("\n\n ---Simon publishing futebol--- \n\n")
+    testAppS ! Publish("futebol", "o bruno de carvalho é uma besta")
 
   }
 

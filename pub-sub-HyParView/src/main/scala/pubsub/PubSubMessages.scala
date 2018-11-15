@@ -19,3 +19,7 @@ case class PassPublish(topic: String, pubHops: Int, message: String, mid: Array[
 case class DirectMessage(topic: String, message: String, mid: Array[Byte])
 
 case class PSDelivery(topic: String, m: String)
+
+object RenewSubs
+
+object CleanOldSubs

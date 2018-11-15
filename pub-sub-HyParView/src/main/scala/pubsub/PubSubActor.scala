@@ -1,10 +1,15 @@
 package pubsub
 
-import java.util.{Calendar, Date}
+import java.util.concurrent.TimeUnit
+import java.util.Date
 
 import akka.actor.{Actor, ActorLogging}
 import gossip.{Gossip, GossipDelivery}
 import utils.{Node, Start, Utils}
+
+import scala.concurrent._
+import ExecutionContext.Implicits.global
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 class PubSubActor(n: Int) extends Actor with ActorLogging {
 
@@ -20,7 +25,11 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   var myNode: Node = _
 
 
-  //TODO  context.system.scheduler.schedule(interval = duration.Duration(Duration.Duration))
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(20, TimeUnit.SECONDS), self, RenewSubs)
+
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(60, TimeUnit.SECONDS), self, CleanOldSubs)
 
 
   override def receive = {
@@ -31,12 +40,16 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
       myNode = node
 
+    //TestApp layer
     case Subscribe(topic) => subscribe(topic)
 
+    //TestApp layer
     case Unsubscribe(topic) => unsubscribe(topic)
 
+    //TestApp layer
     case Publish(topic, m) => publish(topic, m)
 
+    //Gossip layer
     case GossipDelivery(message) => message match {
 
       case ps@PassSubscribe(_, _, _, _, _) =>
@@ -50,14 +63,23 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     }
 
+    //PubSub layer
     case dm@DirectMessage(_, _, _) =>
       receiveDirectMsg(dm)
+
+    //PubSub layer
+    case RenewSubs =>
+      renewSub()
+
+    //PubSub layer
+    case CleanOldSubs =>
+      cleanOldSubs()
 
   }
 
 
   def subscribe(topic: String) = {
-    log.info(s"Received subscribing $topic")
+    log.info(s"Subscribing $topic")
 
     val dateTTL = Utils.getDatePlusTime(TTL)
 
@@ -69,7 +91,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   }
 
   def unsubscribe(topic: String) = {
-    log.info(s"Received unsubscribing $topic")
+    log.info(s"Unsubscribing $topic")
 
     val mid = Utils.md5("UNSUB" + topic + myNode + Utils.getDate)
 
@@ -79,7 +101,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   }
 
   def publish(topic: String, m: String) = {
-    log.info(s"Received publish ($topic) : $m")
+    log.info(s"Publishing ($topic) : $m")
 
     val mid = Utils.md5("PUB" + topic + myNode + m + Utils.getDate)
 
@@ -93,14 +115,14 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     val setOpt = radiusSubsByTopic.get(passSubscribe.topic)
 
-    radiusSubsByTopic =
-      if (setOpt.isDefined) {
-        val updatedSet = setOpt.get.filter(p => !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
+    radiusSubsByTopic = if (setOpt.isDefined) {
+      val updatedSet = setOpt.get.filter(p =>
+        !p._1.equals(passSubscribe.subscriber)) + ((passSubscribe.subscriber, passSubscribe.dateTTL))
 
-        radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
-      } else {
-        radiusSubsByTopic + (passSubscribe.topic -> Set((passSubscribe.subscriber, passSubscribe.dateTTL)))
-      }
+      radiusSubsByTopic.updated(passSubscribe.topic, updatedSet)
+    } else {
+      radiusSubsByTopic + (passSubscribe.topic -> Set((passSubscribe.subscriber, passSubscribe.dateTTL)))
+    }
 
     if (passSubscribe.subHops > 0) {
       myNode.gossipActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
@@ -115,9 +137,12 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     log.info(s"Received passUnsub: $passUnsubscribe")
 
-    val updatedSet = radiusSubsByTopic(passUnsubscribe.topic).filter(p => !p._1.equals(passUnsubscribe.unsubscriber))
+    val setOpt = radiusSubsByTopic.get(passUnsubscribe.topic)
+    if (setOpt.isDefined) {
+      val updatedSet = setOpt.get.filter(p => !p._1.equals(passUnsubscribe.unsubscriber))
+      radiusSubsByTopic = radiusSubsByTopic.updated(passUnsubscribe.topic, updatedSet)
+    }
 
-    radiusSubsByTopic = radiusSubsByTopic.updated(passUnsubscribe.topic, updatedSet)
 
     if (passUnsubscribe.unsubHops > 0) {
       myNode.gossipActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
@@ -173,15 +198,31 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
 
   def renewSub() = {
+    log.info("Trigger Renew subs")
 
-    mySubs.filter(sub => sub._2.before(Utils.getDate)) //TODO *0.2
-      .foreach(sub => subscribe(sub._1))
+    mySubs.foreach {
+      s =>
+        log.info(s"TTL ${s._2.toString}")
+        log.info(s"NOW ${Utils.getDatePlusTime((TTL * 0.2).toInt)}")
+        log.info(s._2.before(Utils.getDatePlusTime((TTL * 0.2).toInt)).toString)
+    }
 
-    mySubs = mySubs.map(sub => (sub._1, Utils.getDatePlusTime(TTL)))
+    val subsToUpdate = mySubs.filter(sub => sub._2.before(Utils.getDatePlusTime((TTL * 0.2).toInt)))
+
+    subsToUpdate.foreach(sub => subscribe(sub._1))
+
+    mySubs = mySubs.map { sub =>
+      if (subsToUpdate.get(sub._1).isDefined) (sub._1, Utils.getDatePlusTime(TTL))
+      else sub
+    }
+
+
   }
 
 
   def cleanOldSubs() = {
+    log.info("Cleaning old subscriptions of other nodes")
+
     radiusSubsByTopic = radiusSubsByTopic.map(s => (s._1, s._2.filter(p => p._2.after(Utils.getDate))))
   }
 

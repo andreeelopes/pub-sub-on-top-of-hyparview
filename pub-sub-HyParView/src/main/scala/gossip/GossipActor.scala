@@ -18,20 +18,21 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     case s@Start(_) =>
       receiveStart(s)
 
+    // Pubsub layer
     case g@Gossip(_, _) =>
       receiveGossip(g, firstTime = true)
 
+    //Gossip layer
     case PassGossip(mid, msg) =>
       receiveGossip(Gossip(mid, msg))
 
-    case Neighbors(nodes) =>
-      receiveNeighbors(nodes)
-
+    //Gossip layer
     case s@Send(_, _) =>
       receiveSend(s)
 
-
-
+    // From membership layer
+    case Neighbors(nodes) =>
+      receiveNeighbors(nodes)
   }
 
 
