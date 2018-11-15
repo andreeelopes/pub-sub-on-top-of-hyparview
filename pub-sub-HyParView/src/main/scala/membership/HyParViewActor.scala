@@ -24,17 +24,21 @@ class HyParViewActor extends Actor with ActorLogging {
     case s@Start(_, _) =>
       receiveStart(s)
 
+    //membership layer
     case j@Join(_) =>
       receiveJoin(j)
 
+    //membership layer
     case fj@ForwardJoin(_, _) =>
       receiveForwardJoin(fj)
 
+    //membership layer
     case d@Disconnect(_) =>
       receiveDisconnect(d)
 
-    case GetNeighbors(n) =>
-      receiveGetNeighbors(n)
+    //gossip layer
+    case gn@GetNeighbors(_, _) =>
+      receiveGetNeighbors(gn)
 
   }
 
@@ -82,8 +86,8 @@ class HyParViewActor extends Actor with ActorLogging {
     }
   }
 
-  def receiveGetNeighbors(n: Int) = {
-    val peersSample = getPeers(n)
+  def receiveGetNeighbors(getNeighborsMsg: GetNeighbors) = {
+    val peersSample = getPeers(getNeighborsMsg.n, getNeighborsMsg.sender)
 
     log.info(s"Returning GetNeighbors: $peersSample")
 
@@ -124,9 +128,9 @@ class HyParViewActor extends Actor with ActorLogging {
 
   }
 
-  def getPeers(f: Int) = {
+  def getPeers(f: Int, sender: Node = null) = {
     log.info(s"Get peers to gossip")
-    Utils.pickRandomN[Node](activeView, f)
+    Utils.pickRandomN[Node](activeView, f, sender)
   }
 
 

@@ -13,47 +13,48 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
   var myNode: Node = _
 
+
   override def receive = {
 
     case s@Start(_) =>
       receiveStart(s)
 
-    // Pubsub layer
+    //Pubsub layer
     case g@Gossip(_, _) =>
-      receiveGossip(g, firstTime = true)
+      receiveGossip(g)
 
     //Gossip layer
-    case PassGossip(mid, msg) =>
-      receiveGossip(Gossip(mid, msg))
+    case pg@PassGossip(_, _) =>
+      receivePassGossip(pg)
 
     //Gossip layer
     case s@Send(_, _) =>
       receiveSend(s)
 
-    // From membership layer
+    //Membership layer
     case Neighbors(nodes) =>
       receiveNeighbors(nodes)
   }
 
 
   def receiveStart(startMsg: Start) = {
-
     myNode = startMsg.node
   }
 
-  def receiveGossip[A](gossipMsg: Gossip[A], firstTime: Boolean = false): Unit = {
+
+  def receivePassGossip(passGossipMsg: PassGossip[Any]) = {
+    if (!delivered.contains(passGossipMsg.mid)) {
+      delivered += passGossipMsg.mid
+      myNode.pubSubActor ! GossipDelivery(passGossipMsg.message)
+    }
+  }
+
+  def receiveGossip[A](gossipMsg: Gossip[A]) = {
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 
-
-      if (!firstTime) {
-        log.info(gossipMsg.toString)
-        myNode.pubSubActor ! GossipDelivery(gossipMsg.message)
-      }
-
       pending += (gossipMsg.mid -> gossipMsg)
-
-      myNode.membershipActor ! GetNeighbors(fanout)
+      myNode.membershipActor ! GetNeighbors(fanout, myNode)
     }
 
   }

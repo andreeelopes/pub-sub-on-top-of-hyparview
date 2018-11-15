@@ -10,7 +10,7 @@ case class Disconnect(node: Node)
 
 case class Neighbors(neighborsSample: List[Node])
 
-case class GetNeighbors(n: Int)
+case class GetNeighbors(n: Int, sender: Node = null)
 
 case class Start(contactNode: Node, myNode: Node)
 
