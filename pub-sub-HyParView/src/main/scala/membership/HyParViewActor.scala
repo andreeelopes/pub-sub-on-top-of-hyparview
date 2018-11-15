@@ -21,14 +21,14 @@ class HyParViewActor extends Actor with ActorLogging {
 
   override def receive = {
 
-    case Start(_contactNode_, _bcastActor_) =>
-      receiveStart(Start(_contactNode_, _bcastActor_))
+    case s@Start(_contactNode_, _bcastActor_) =>
+      receiveStart(s)
 
     case Join =>
       receiveJoin()
 
-    case ForwardJoin(newNode, ttl) =>
-      receiveForwardJoin(ForwardJoin(newNode, ttl))
+    case fj@ForwardJoin(newNode, ttl) =>
+      receiveForwardJoin(fj)
 
     case Disconnect =>
       receiveDisconnect()

@@ -41,19 +41,19 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     case GossipDelivery(message) => message match {
 
-      case PassSubscribe(subscriber, topic, dateTTL, hops, mid) =>
-        receivePassSub(PassSubscribe(subscriber, topic, dateTTL, hops, mid))
+      case ps@PassSubscribe(subscriber, topic, dateTTL, hops, mid) =>
+        receivePassSub(ps)
 
-      case PassUnsubscribe(unsubscriber, topic, hops, mid) =>
-        receivePassUnsub(PassUnsubscribe(unsubscriber, topic, hops, mid))
+      case pu@PassUnsubscribe(unsubscriber, topic, hops, mid) =>
+        receivePassUnsub(pu)
 
-      case PassPublish(topic, hops, msg, mid) =>
-        receivePassPub(PassPublish(topic, hops, msg, mid))
+      case pp@PassPublish(topic, hops, msg, mid) =>
+        receivePassPub(pp)
 
     }
 
-    case DirectMessage(topic, message, mid) =>
-      receiveDirectMsg(DirectMessage(topic, message, mid))
+    case dm@DirectMessage(topic, message, mid) =>
+      receiveDirectMsg(dm)
 
   }
 

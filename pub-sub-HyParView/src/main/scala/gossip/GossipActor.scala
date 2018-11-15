@@ -15,11 +15,11 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
   override def receive = {
 
-    case Start(_membershipActor_, _pubSubActor_) =>
-      receiveStart(Start(_membershipActor_, _pubSubActor_))
+    case s@Start(_membershipActor_, _pubSubActor_) =>
+      receiveStart(s)
 
-    case Gossip(mid, msg) =>
-      receiveGossip(Gossip(mid, msg), firstTime = true)
+    case g@Gossip(mid, msg) =>
+      receiveGossip(g, firstTime = true)
 
     case PassGossip(mid, msg) =>
       receiveGossip(Gossip(mid, msg))
@@ -27,8 +27,8 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     case Neighbors(neighborsSample) =>
       receiveNeighbors(neighborsSample)
 
-    case Send(mid, msg) =>
-      receiveSend(Send(mid, msg))
+    case s@Send(mid, msg) =>
+      receiveSend(s)
 
   }
 
