@@ -5,12 +5,14 @@ import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import java.net.InetSocketAddress
 
+import utils.Node
+
 object TcpClient {
-  def props(remote: InetSocketAddress, replies: ActorRef) =
-    Props(classOf[Client], remote, replies)
+  def props(remote: InetSocketAddress, replies: ActorRef, node: Node) =
+    Props(classOf[TcpClient], remote, replies, node)
 }
 
-class TcpClient(remote: InetSocketAddress, listener: ActorRef) extends Actor with ActorLogging{
+class TcpClient(remote: InetSocketAddress, listener: ActorRef, node : Node) extends Actor with ActorLogging{
 
   import Tcp._
   import context.system
@@ -26,7 +28,7 @@ class TcpClient(remote: InetSocketAddress, listener: ActorRef) extends Actor wit
       context stop self
 
     case c@Connected(remote, local) ⇒
-      listener ! c
+      listener ! TcpSuccess(node)
       val connection = sender()
       connection ! Register(self)
       context become {
@@ -44,6 +46,7 @@ class TcpClient(remote: InetSocketAddress, listener: ActorRef) extends Actor wit
         case _: ConnectionClosed ⇒
           listener ! "connection closed"
           context stop self
+        case NeighborMsg =>
       }
   }
 }
