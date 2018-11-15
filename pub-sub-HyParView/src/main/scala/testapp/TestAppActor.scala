@@ -1,28 +1,28 @@
 package testapp
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging}
 import pubsub.{PSDelivery, Publish, Subscribe, Unsubscribe}
+import utils.{Node, Start}
 
 
 class TestAppActor extends Actor with ActorLogging {
 
-  var pubSubActor: ActorRef = _
+  var myNode: Node = _
 
   override def receive = {
-    case Start(_pubSubActor_) =>
-      pubSubActor = _pubSubActor_
-      log.info(s"Starting")
+    case Start(node) =>
+      myNode = node
 
     case Subscribe(topic) =>
       log.info(s"Subscribing $topic")
-      pubSubActor ! Subscribe(topic)
+      myNode.pubSubActor ! Subscribe(topic)
     case Unsubscribe(topic) =>
       log.info(s"Unsubscribing $topic")
-      pubSubActor ! Unsubscribe(topic)
+      myNode.pubSubActor ! Unsubscribe(topic)
 
     case Publish(topic, m) =>
       log.info(s"Publishing ($topic): $m")
-      pubSubActor ! Publish(topic, m)
+      myNode.pubSubActor ! Publish(topic, m)
 
     case PSDelivery(topic, m) =>
       log.info(s"Here's is something interesting for you about $topic:\n $m")

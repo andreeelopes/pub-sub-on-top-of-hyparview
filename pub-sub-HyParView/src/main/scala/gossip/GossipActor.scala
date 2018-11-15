@@ -1,43 +1,41 @@
 package gossip
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging}
 import membership.{GetNeighbors, Neighbors}
+import utils.{Node, Start}
 
 class GossipActor(f: Int) extends Actor with ActorLogging {
 
-  var neighbors = List[ActorRef]()
+  var neighbors = List[Node]()
   var pending = Map[Array[Byte], Object]()
   var delivered = Set[Array[Byte]]()
   val fanout = f //TODO pass as a message of HyParView?
 
-  var membershipActor: ActorRef = _
-  var pubSubActor: ActorRef = _
+  var myNode: Node = _
 
   override def receive = {
 
-    case s@Start(_membershipActor_, _pubSubActor_) =>
+    case s@Start(_) =>
       receiveStart(s)
 
-    case g@Gossip(mid, msg) =>
+    case g@Gossip(_, _) =>
       receiveGossip(g, firstTime = true)
 
     case PassGossip(mid, msg) =>
       receiveGossip(Gossip(mid, msg))
 
-    case Neighbors(neighborsSample) =>
-      receiveNeighbors(neighborsSample)
+    case Neighbors(nodes) =>
+      receiveNeighbors(nodes)
 
-    case s@Send(mid, msg) =>
+    case s@Send(_, _) =>
       receiveSend(s)
 
   }
 
 
   def receiveStart(startMsg: Start) = {
-    log.info("Starting")
 
-    membershipActor = startMsg.membershipActor
-    pubSubActor = startMsg.pubSubActor
+    myNode = startMsg.node
   }
 
   def receiveGossip[A](gossipMsg: Gossip[A], firstTime: Boolean = false): Unit = {
@@ -46,13 +44,13 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
 
       if (!firstTime) {
-        log.info(s"Delivered gossip message: $gossipMsg")
-        pubSubActor ! GossipDelivery(gossipMsg.message)
+        log.info(gossipMsg.toString)
+        myNode.pubSubActor ! GossipDelivery(gossipMsg.message)
       }
 
       pending += (gossipMsg.mid -> gossipMsg)
 
-      membershipActor ! GetNeighbors(fanout)
+      myNode.membershipActor ! GetNeighbors(fanout)
     }
 
   }
@@ -61,21 +59,19 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
     if (!delivered.contains(sendMsg.mid)) {
       delivered += sendMsg.mid
 
-      log.info(s"Delivered direct message: $sendMsg")
+      log.info(sendMsg.toString)
 
-      pubSubActor ! GossipDelivery(sendMsg.message)
+      myNode.pubSubActor ! GossipDelivery(sendMsg.message)
     }
   }
 
 
-  def receiveNeighbors[A](newNeighbors: List[ActorRef]) = {
+  def receiveNeighbors[A](newNeighbors: List[Node]) = {
     neighbors = newNeighbors
 
     pending.foreach { msg =>
-      neighbors.foreach { neighbor =>
-        neighbor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
-        //TODO neighbors são actores da camada de baixo e não desta
-        //possível solução será manter sempre o par pubsub/membership
+      neighbors.foreach { node =>
+        node.gossipActor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
       }
     }
 

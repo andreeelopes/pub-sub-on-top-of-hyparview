@@ -1,18 +1,18 @@
 package membership
 
-import akka.actor.ActorRef
+import utils.Node
 
-object Join
+case class Join(newNode: Node)
 
-case class ForwardJoin(newNode: ActorRef, ttl: Long)
+case class ForwardJoin(newNode: Node, ttl: Long)
 
-object Disconnect
+case class Disconnect(node: Node)
 
-case class Neighbors(neighborsSample: List[ActorRef])
+case class Neighbors(neighborsSample: List[Node])
 
 case class GetNeighbors(n: Int)
 
-case class Start(contactNode: ActorRef, bcastActor: ActorRef)
+case class Start(contactNode: Node, myNode: Node)
 
 
 

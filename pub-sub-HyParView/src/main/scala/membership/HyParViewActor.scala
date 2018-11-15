@@ -1,13 +1,13 @@
 package membership
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
-import utils.Utils
+import akka.actor.{Actor, ActorLogging}
+import utils.{Node, Utils}
 
 
 class HyParViewActor extends Actor with ActorLogging {
 
-  var activeView = List[ActorRef]()
-  var passiveView = List[ActorRef]()
+  var activeView = List[Node]()
+  var passiveView = List[Node]()
   val ARWL = 6
   val PRWL = 3
   val actViewMaxSize = 5 //TODO
@@ -16,22 +16,22 @@ class HyParViewActor extends Actor with ActorLogging {
   var receivedMsgs = List[Array[Byte]]()
 
 
-  var contactNode: ActorRef = _
-  var bcastActor: ActorRef = _
+  var contactNode: Node = _
+  var myNode: Node = _
 
   override def receive = {
 
-    case s@Start(_contactNode_, _bcastActor_) =>
+    case s@Start(_, _) =>
       receiveStart(s)
 
-    case Join =>
-      receiveJoin()
+    case j@Join(_) =>
+      receiveJoin(j)
 
-    case fj@ForwardJoin(newNode, ttl) =>
+    case fj@ForwardJoin(_, _) =>
       receiveForwardJoin(fj)
 
-    case Disconnect =>
-      receiveDisconnect()
+    case d@Disconnect(_) =>
+      receiveDisconnect(d)
 
     case GetNeighbors(n) =>
       receiveGetNeighbors(n)
@@ -39,27 +39,27 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def receiveStart(startMsg: Start) = {
-    log.info("Starting")
 
     contactNode = startMsg.contactNode
-    bcastActor = startMsg.bcastActor
+    myNode = startMsg.myNode
 
     if (contactNode != null) {
       addNodeActView(contactNode)
-      contactNode ! Join
+      contactNode.membershipActor ! Join(myNode)
     }
 
   }
 
-  def receiveJoin() = {
-    log.info(s"Join from ${sender.path.name}")
+  def receiveJoin(joinMsg: Join) = {
+    log.info(joinMsg.toString)
 
-    addNodeActView(sender)
-    activeView.filter(n => !n.equals(sender)).foreach(n => n ! ForwardJoin(sender, ARWL))
+    addNodeActView(joinMsg.newNode)
+    activeView.filter(n => !n.equals(joinMsg.newNode))
+      .foreach(n => n.membershipActor ! ForwardJoin(joinMsg.newNode, ARWL))
   }
 
   def receiveForwardJoin(forwardMsg: ForwardJoin) = {
-    log.info(s"ForwardJoin from ${sender.path.name} with message: $forwardMsg")
+    log.info(forwardMsg.toString)
 
     if (forwardMsg.ttl == 0 || activeView.size == 1)
       addNodeActView(forwardMsg.newNode)
@@ -67,18 +67,18 @@ class HyParViewActor extends Actor with ActorLogging {
       if (forwardMsg.ttl == PRWL)
         addNodePassView(forwardMsg.newNode)
 
-      val n = Utils.pickRandomN[ActorRef](activeView.filter(n => !n.equals(sender)), 1).head
+      val n = Utils.pickRandomN[Node](activeView.filter(n => !n.equals(n)), 1).head
 
-      n ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1)
+      n.membershipActor ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1)
     }
   }
 
-  def receiveDisconnect() = {
-    if (activeView.contains(sender)) {
-      log.info(s"Disconect ${sender.path.name}")
+  def receiveDisconnect(disconnectMsg: Disconnect) = {
+    if (activeView.contains(disconnectMsg.node)) {
+      log.info(disconnectMsg.toString)
 
-      activeView = activeView.filter(n => !n.equals(sender))
-      addNodePassView(sender)
+      activeView = activeView.filter(n => !n.equals(disconnectMsg.node))
+      addNodePassView(disconnectMsg.node)
     }
   }
 
@@ -87,46 +87,46 @@ class HyParViewActor extends Actor with ActorLogging {
 
     log.info(s"Returning GetNeighbors: $peersSample")
 
-    bcastActor ! Neighbors(peersSample)
+    myNode.gossipActor ! Neighbors(peersSample)
   }
 
   def dropRandomElemActView() = {
-    val n = Utils.pickRandomN[ActorRef](activeView, 1).head
-    n ! Disconnect
+    val n = Utils.pickRandomN[Node](activeView, 1).head
+    n.membershipActor ! Disconnect(myNode)
     activeView = activeView.filter(elem => !elem.equals(n))
     passiveView ::= n
 
-    log.info(s"Dropped ${n.path.name} from active view and added it to the passive")
+    log.info(s"Dropped $n from active view and added it to the passive")
   }
 
-  def addNodeActView(node: ActorRef) = {
-    if (!node.equals(self) && !activeView.contains(node)) {
+  def addNodeActView(newNode: Node) = {
+    if (!newNode.equals(myNode) && !activeView.contains(newNode)) {
       if (activeView.size == actViewMaxSize)
         dropRandomElemActView()
-      log.info(s"Adding ${node.path.name} to active view")
-      activeView ::= node
+      log.info(s"Adding $newNode to active view")
+      activeView ::= newNode
       log.info(s" ActiveView: ${activeView.toString()} ; size: ${activeView.size}")
     }
 
   }
 
-  def addNodePassView(node: ActorRef) = {
-    if (!node.equals(self) && !activeView.contains(node) && !passiveView.contains(node)) {
+  def addNodePassView(newNode: Node) = {
+    if (!newNode.equals(myNode) && !activeView.contains(newNode) && !passiveView.contains(newNode)) {
       if (passiveView.size == passViewMaxSize) {
-        val n = Utils.pickRandomN[ActorRef](activeView, 1).head
+        val n = Utils.pickRandomN[Node](activeView, 1).head
         passiveView = passiveView.filter(elem => !elem.equals(n))
       }
-      log.info(s"Adding ${node.path.name} to passive view")
+      log.info(s"Adding $newNode to passive view")
       log.info(s" Passive View: ${passiveView.toString()}")
 
-      passiveView ::= node
+      passiveView ::= newNode
     }
 
   }
 
   def getPeers(f: Int) = {
     log.info(s"Get peers to gossip")
-    Utils.pickRandomN[ActorRef](activeView, f)
+    Utils.pickRandomN[Node](activeView, f)
   }
 
 

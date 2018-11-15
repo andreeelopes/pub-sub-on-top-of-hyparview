@@ -2,14 +2,14 @@ package pubsub
 
 import java.util.Date
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging}
 import gossip.{Gossip, GossipDelivery}
-import utils.Utils
+import utils.{Node, Start, Utils}
 
 class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   val diameter = math.log(n * 10).toInt
-  var radiusSubsByTopic = Map[String, Set[(ActorRef, Date)]]()
+  var radiusSubsByTopic = Map[String, Set[(Node, Date)]]()
   var mySubs = Map[String, Date]()
   val subHops = (diameter + 1) / 2
   val pubHops = (diameter + 1) / 2
@@ -17,8 +17,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   val TTL = 30 //s
 
-  var bcastActor: ActorRef = _
-  var testAppActor: ActorRef = _
+  var myNode: Node = _
 
 
   //TODO  context.system.scheduler.schedule(interval = duration.Duration(Duration.Duration))
@@ -26,12 +25,11 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   override def receive = {
 
-    case pubsub.Start(_broadcastActor_, _testAppActor_) =>
+    case Start(node) =>
 
       log.info(s"Starting: diameter - $diameter ; subHops - $subHops")
 
-      bcastActor = _broadcastActor_
-      testAppActor = _testAppActor_
+      myNode = node
 
     case Subscribe(topic) => subscribe(topic)
 
@@ -41,18 +39,18 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     case GossipDelivery(message) => message match {
 
-      case ps@PassSubscribe(subscriber, topic, dateTTL, hops, mid) =>
+      case ps@PassSubscribe(_, _, _, _, _) =>
         receivePassSub(ps)
 
-      case pu@PassUnsubscribe(unsubscriber, topic, hops, mid) =>
+      case pu@PassUnsubscribe(_, _, _, _) =>
         receivePassUnsub(pu)
 
-      case pp@PassPublish(topic, hops, msg, mid) =>
+      case pp@PassPublish(_, _, _, _) =>
         receivePassPub(pp)
 
     }
 
-    case dm@DirectMessage(topic, message, mid) =>
+    case dm@DirectMessage(_, _, _) =>
       receiveDirectMsg(dm)
 
   }
@@ -62,29 +60,29 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     log.info(s"Received subscribing $topic")
 
     val dateTTL = Utils.getDatePlusTime(TTL)
-    val mid = Utils.md5("SUB" + topic + self + Utils.getDate)
+    val mid = Utils.md5("SUB" + topic + myNode + Utils.getDate)
 
     mySubs += (topic -> dateTTL)
 
-    bcastActor ! Gossip(mid, PassSubscribe(self, topic, dateTTL, subHops - 1, mid))
+    myNode.gossipActor ! Gossip(mid, PassSubscribe(myNode, topic, dateTTL, subHops - 1, mid))
   }
 
   def unsubscribe(topic: String) = {
     log.info(s"Received unsubscribing $topic")
 
-    val mid = Utils.md5("UNSUB" + topic + self + Utils.getDate)
+    val mid = Utils.md5("UNSUB" + topic + myNode + Utils.getDate)
 
     mySubs -= topic
 
-    bcastActor ! Gossip(mid, PassUnsubscribe(self, topic, subHops - 1, mid))
+    myNode.gossipActor ! Gossip(mid, PassUnsubscribe(myNode, topic, subHops - 1, mid))
   }
 
   def publish(topic: String, m: String) = {
     log.info(s"Received publish ($topic) : $m")
 
-    val mid = Utils.md5("PUB" + topic + self + m + Utils.getDate)
+    val mid = Utils.md5("PUB" + topic + myNode + m + Utils.getDate)
 
-    bcastActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
+    myNode.gossipActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
   }
 
 
@@ -104,7 +102,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
       }
 
     if (passSubscribe.subHops > 0) {
-      bcastActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
+      myNode.gossipActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
     }
 
     log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
@@ -121,7 +119,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     radiusSubsByTopic = radiusSubsByTopic.updated(passUnsubscribe.topic, updatedSet)
 
     if (passUnsubscribe.unsubHops > 0) {
-      bcastActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
+      myNode.gossipActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
     }
 
     log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
@@ -136,15 +134,16 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     val dateTTLOpt = mySubs.get(passPublish.topic)
     if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
-      testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
+      myNode.testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
 
-
-    radiusSubsByTopic(passPublish.topic)
-      .filter(p => p._2.after(Utils.getDate))
-      .foreach(p => p._1 ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+    val setOpt = radiusSubsByTopic.get(passPublish.topic)
+    if (setOpt.isDefined) {
+      setOpt.get.filter(p => p._2.after(Utils.getDate))
+        .foreach(p => p._1.pubSubActor ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+    }
 
     if (passPublish.pubHops > 0) {
-      bcastActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
+      myNode.gossipActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
     }
 
     log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
@@ -162,7 +161,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
       val dateTTLOpt = mySubs.get(directMessage.topic)
       if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
-        testAppActor ! PSDelivery(directMessage.topic, directMessage.message)
+        myNode.testAppActor ! PSDelivery(directMessage.topic, directMessage.message)
 
     }
 
