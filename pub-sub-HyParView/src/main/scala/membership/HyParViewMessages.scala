@@ -16,6 +16,11 @@ case class Start(contactNode: Node, myNode: Node)
 
 case class addToActiveWarning(senderNode : Node)
 
+//Keep Alive Mechanism
+case class ActiveViewCyclicCheck()
+
+case class Heartbeat()
+
 //Passive View management messages
 case class PassiveViewCyclicCheck()
 

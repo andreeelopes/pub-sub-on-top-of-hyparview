@@ -1,7 +1,7 @@
 package utils
 
 import java.security.MessageDigest
-import java.util.{Calendar, Date}
+import java.util.{Calendar}
 
 import scala.util.Random
 
@@ -13,6 +13,7 @@ object Utils {
     now.add(Calendar.SECOND, TTL)
     now.getTime
   }
+
 
   def getDate = {
     Calendar.getInstance().getTime
