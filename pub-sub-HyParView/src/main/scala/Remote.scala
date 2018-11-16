@@ -1,35 +1,13 @@
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorSystem, PoisonPill, Props}
 import com.typesafe.config.ConfigFactory
 import gossip.GossipActor
 import membership.HyParViewActor
 import pubsub.PubSubActor
-import testapp.TestAppActor
+import testapp.{StatsAndDie, TestAppActor}
 import utils.{Node, Start}
 
+
 object Remote extends App {
-
-  //30 topicos
-  //cada nó subscreve 5 topicos de 50 fixos
-  // 5 topicos publish ao calhas de 1/2s   publish(Ti, myIp:myPort:seq) seq => sequencia da mensagem
-  // registar em cada nó os que subscreveu, os que publicou
-  //verificar se os tópicos menos populares sejam mais entregues
-
-  //quantas mensagens de rede estamos a enviar, ao nível do pubsub, em média cada processo mandou x mensagens
-
-  //testar com falhas durante
-
-  /*
-  Introdução -> o que foi feito
-  overview -> solução, componentes
-  detailed overview ->
-        3 subsecções: overlay, pubsub, test
-  pseudo-code e argumentos de correção:
-      overlay, pubsub
-  avaliação experimental
-      experiencia: (nº de máquinas, nº de processos, 5 subs, 5 pubs)
-      resultados e discussão
-  conclusão
-   */
 
   override def main(args: Array[String]) = {
 
@@ -59,16 +37,31 @@ object Remote extends App {
     }
 
 
-    testAppActor ! Start(node)
     pubSubActor ! Start(node)
     gossipActor ! Start(node)
     membershipActor ! membership.Start(contactAkkaId, node)
 
+    Thread.sleep(5 * 1000)
+
+    testAppActor ! Start(node)
+
+    Thread.sleep(1 * 60 * 1000)
+
+    testAppActor ! StatsAndDie
+
+    Thread.sleep(3000)
+
+    system.terminate()
+
+
   }
+
 
   def getConf(ip: String, port: String) = {
     s"""
        |akka {
+       |  event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+       |   loglevel = "DEBUG"
        |   actor {
        |     provider = "remote"
        |     warn-about-java-serializer-usage = false

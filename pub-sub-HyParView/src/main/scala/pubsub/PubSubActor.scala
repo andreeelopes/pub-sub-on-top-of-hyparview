@@ -104,6 +104,9 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     val mid = Utils.md5("PUB" + topic + myNode + m + Utils.getDate)
 
+    if (mySubs.contains(topic))
+      myNode.testAppActor ! PSDelivery(topic, m)
+
     myNode.gossipActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
   }
 
@@ -198,13 +201,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   def renewSub() = {
     log.info("Trigger Renew subs")
-
-    mySubs.foreach {
-      s =>
-        log.info(s"TTL ${s._2.toString}")
-        log.info(s"NOW ${Utils.getDatePlusTime((TTL * 0.2).toInt)}")
-        log.info(s._2.before(Utils.getDatePlusTime((TTL * 0.2).toInt)).toString)
-    }
 
     val subsToUpdate = mySubs.filter(sub => sub._2.before(Utils.getDatePlusTime((TTL * 0.2).toInt)))
 
