@@ -1,19 +1,11 @@
-import java.net.InetSocketAddress
-
 import akka.actor.{ActorSystem, Props}
-import akka.util.{ByteString, CompactByteString}
-//import membership.ShuffleReplyMsg
-import tcp._
-//import akka.actor.{ActorLogging, ActorSystem, PoisonPill, Props}
-//import akka.event.Logging
-//import akka.util.ByteString
-//import tcp.{ActorTest, TcpClient, TcpServer}
-//import gossip.GossipActor
-//import membership.HyParViewActor
-//import pubsub.{PubSubActor, Publish, Subscribe}
-//import testapp.TestAppActor
-//import utils.{Node, Start}
-//import java.net.InetSocketAddress
+import akka.actor.{ActorLogging, ActorSystem, PoisonPill, Props}
+import akka.event.Logging
+import gossip.GossipActor
+import membership.HyParViewActor
+import pubsub.{PubSubActor, Publish, Subscribe}
+import testapp.TestAppActor
+import utils.{Node, Start}
 
 
 object Main {
@@ -96,53 +88,5 @@ object Main {
     println("\n\n ---Nelson publishing futebol--- \n\n")
     testAppN ! Publish("futebol", "o bruno de carvalho é uma besta")*/
 
-
-    //    val serverActorSystem = ActorSystem("serverActorSystem")
-    //    val clientActorSystem = ActorSystem("clientActorSystem")
-    //
-    //    val tcpTest = clientActorSystem.actorOf(Props[ActorTest])
-    //
-    //    val clientActor = clientActorSystem.actorOf(
-    //      Props(new Client(new InetSocketAddress("localhost", 69),
-    //        tcpTest)), "TcpClient")
-    //    //    val serverActor = serverActorSystem.actorOf(Props[TcpServer], "TcpServer")
-    //
-    //
-    //    val data = ByteString("Quem me dera ser só da cintura pra cima!")
-    //
-    //    Thread.sleep(5000)
-    //    clientActor ! data
-    //
-    //    clientActor ! PoisonPill
-    //    Thread.sleep(10000)
-    //
-    //    val clientActor2 = clientActorSystem.actorOf(
-    //      Props(new Client(new InetSocketAddress("localhost",69),
-    //        tcpTest)), "ComeBack")
-    //    val data2 = ByteString("comebacks baaby!")
-    //
-    //    clientActor2 ! data2
-
-
-    val serverActorSystem = ActorSystem("serverActorSystem")
-    val clientActorSystem = ActorSystem("clientActorSystem")
-
-    val tcpTest = clientActorSystem.actorOf(Props[ActorTest])
-
-    val serverActor = serverActorSystem.actorOf(Props[TcpServer], "TcpServer")
-
-
-    val clientActor = clientActorSystem.actorOf(
-      Props(new TcpClient(new InetSocketAddress("localhost", 69),tcpTest)), "TcpClient")
-
-
-    case class MsgTest(string: String, int: Int)
-
-
-    clientActor ! ByteString("Ground Control to Major Tom")
-
-
   }
-
-
 }

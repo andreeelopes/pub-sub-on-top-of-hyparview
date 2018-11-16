@@ -1,4 +1,3 @@
-/*
 package gossip
 
 import akka.actor.{Actor, ActorLogging}
@@ -30,8 +29,6 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
     case s@Send(_, _) =>
       receiveSend(s)
-
-
 
   }
 
@@ -83,4 +80,3 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
 
 }
-*/
