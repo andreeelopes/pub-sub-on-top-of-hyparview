@@ -1,3 +1,4 @@
+/*
 package testapp
 
 import akka.actor.{Actor, ActorLogging}
@@ -30,3 +31,4 @@ class TestAppActor extends Actor with ActorLogging {
 
 
 }
+*/

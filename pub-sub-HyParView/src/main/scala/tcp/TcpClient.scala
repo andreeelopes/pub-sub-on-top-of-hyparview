@@ -5,14 +5,15 @@ import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import java.net.InetSocketAddress
 
-import utils.Node
+//import membership.ShuffleReplyMsg
+//import utils.Node
 
 object TcpClient {
-  def props(remote: InetSocketAddress, replies: ActorRef, node: Node) =
-    Props(classOf[TcpClient], remote, replies, node)
+  def props(remote: InetSocketAddress, replies: ActorRef) =
+    Props(classOf[TcpClient], remote, replies)
 }
 
-class TcpClient(remote: InetSocketAddress, listener: ActorRef, node : Node) extends Actor with ActorLogging{
+class TcpClient(remote: InetSocketAddress, listener: ActorRef) extends Actor with ActorLogging{
 
   import Tcp._
   import context.system
@@ -22,31 +23,33 @@ class TcpClient(remote: InetSocketAddress, listener: ActorRef, node : Node) exte
   log.info(s"remote = $remote")
 
   def receive = {
-    case CommandFailed(_: Connect) ⇒
+    case CommandFailed(_: Connect) =>
       log.info(s"Connection to $remote failed")
       listener ! "connect failed"
       context stop self
 
-    case c@Connected(remote, local) ⇒
-      listener ! TcpSuccess(node)
+    case c@Connected(remote, local) =>
+      //listener ! TcpSuccess(listenerNode) TODO tirar comentario
       val connection = sender()
       connection ! Register(self)
       context become {
-        case data: ByteString ⇒
+        case data: ByteString  =>
           log.info(s"Sending = ${data.utf8String}")
           connection ! Write(data)
-        case CommandFailed(w: Write) ⇒
+        case CommandFailed(w: Write) =>
           // O/S buffer was full
           listener ! "write failed"
         case Received(data) ⇒
-          log.info(s"Receiving = $${data.utf8String}")
+          log.info(s"Receiving = ${data.utf8String}")
           listener ! data
-        case "close" ⇒
+        case "close" =>
           connection ! Close
-        case _: ConnectionClosed ⇒
+        case t@TcpMessage(_) =>
+          log.info(s"Sending custom TCP message = $t")
+          connection ! WriteTcpMessage(t)
+        case _: ConnectionClosed =>
           listener ! "connection closed"
           context stop self
-        case NeighborMsg =>
       }
   }
 }
