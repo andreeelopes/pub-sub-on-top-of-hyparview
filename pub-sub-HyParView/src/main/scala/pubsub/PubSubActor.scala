@@ -25,18 +25,17 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   var myNode: Node = _
 
 
-  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-    Duration(20, TimeUnit.SECONDS), self, RenewSubs)
-
-  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-    Duration(60, TimeUnit.SECONDS), self, CleanOldSubs)
-
-
   override def receive = {
 
     case Start(node) =>
 
       log.info(s"Starting: diameter - $diameter ; subHops - $subHops")
+
+      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+        Duration(20, TimeUnit.SECONDS), self, RenewSubs)
+
+      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+        Duration(60, TimeUnit.SECONDS), self, CleanOldSubs)
 
       myNode = node
 

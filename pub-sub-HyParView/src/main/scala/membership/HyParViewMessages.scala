@@ -12,9 +12,11 @@ case class Neighbors(neighborsSample: List[Node])
 
 case class GetNeighbors(n: Int, sender: Node = null)
 
-case class Start(contactNode: Node, myNode: Node)
+case class Start(contactNodeId: String, myNode: Node)
 
+case class IdentifyPartner(sender: Node)
 
+case class GetNode(sender: Node)
 
 
 

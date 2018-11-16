@@ -1,6 +1,6 @@
 package membership
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{Actor, ActorIdentity, ActorLogging, Identify}
 import utils.{Node, Utils}
 
 
@@ -36,6 +36,22 @@ class HyParViewActor extends Actor with ActorLogging {
     case d@Disconnect(_) =>
       receiveDisconnect(d)
 
+    //membership layer
+    case a@ActorIdentity(_, _) =>
+      receiveIdentifyReply(a)
+
+    //membership layer
+    case g@GetNode(_) =>
+      g.sender.membershipActor ! myNode
+
+    //membership layer
+    case node@Node(_, _, _, _, _) =>
+      contactNode = node
+      log.info("Received contactNode: " + node)
+      contactNode.membershipActor ! Join(myNode)
+
+      addNodeActView(contactNode)
+
     //gossip layer
     case gn@GetNeighbors(_, _) =>
       receiveGetNeighbors(gn)
@@ -44,14 +60,20 @@ class HyParViewActor extends Actor with ActorLogging {
 
   def receiveStart(startMsg: Start) = {
 
-    contactNode = startMsg.contactNode
     myNode = startMsg.myNode
 
-    if (contactNode != null) {
-      addNodeActView(contactNode)
-      contactNode.membershipActor ! Join(myNode)
+    if (startMsg.contactNodeId != null) {
+      val selection = context.actorSelection(startMsg.contactNodeId)
+      selection ! Identify()
+    } else {
+      log.warning("Contact node not provided")
     }
 
+  }
+
+
+  def receiveIdentifyReply(actorIdentity: ActorIdentity) = {
+    actorIdentity.ref.get ! GetNode(myNode)
   }
 
   def receiveJoin(joinMsg: Join) = {
