@@ -1,4 +1,3 @@
-/*
 import akka.actor.{ActorSystem, PoisonPill, Props}
 import com.typesafe.config.ConfigFactory
 import gossip.GossipActor
@@ -46,11 +45,11 @@ object Remote extends App {
 
     testAppActor ! Start(node)
 
-    Thread.sleep(1 * 60 * 1000)
+    Thread.sleep(3 * 60 * 1000)
 
     testAppActor ! StatsAndDie
 
-    Thread.sleep(3000)
+    Thread.sleep(5000)
 
     system.terminate()
 
@@ -80,4 +79,3 @@ object Remote extends App {
 
 
 }
-*/

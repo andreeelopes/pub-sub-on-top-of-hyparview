@@ -1,11 +1,10 @@
 package testapp
 
-import java.io.File
 
 import akka.actor.{Actor, ActorLogging}
 import pubsub.{PSDelivery, Publish, Subscribe}
 import utils.{Node, Start}
-import java.io.PrintWriter
+import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
 
 import scala.util.Random
 
@@ -20,9 +19,13 @@ class TestAppActor extends Actor with ActorLogging {
   var publishCount = Map[String, Int]()
   var receivedCount = Map[String, Int]()
 
-  var suicideAfter = 1
+  var suicideAfter = 60
 
-  val randomTopics = Random.shuffle(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)).take(subscribeN)
+  var myTopics = List[Int]()
+
+  val randomTopics = Random.shuffle(generateList(numberOfTopics)).take(subscribeN)
+
+  populateMaps()
 
 
   override def receive = {
@@ -31,11 +34,10 @@ class TestAppActor extends Actor with ActorLogging {
 
       myNode = node
 
-      for (i <- 1 to subscribeN) {
-        val topic = s"T${randomTopics(i - 1)}"
-
+      for (i <- 0 until subscribeN) {
+        val topic = s"${randomTopics(i)}"
+        myTopics ::= topic.toInt
         log.info(s"Subscribing -> $topic")
-        publishCount = incrementCount(topic, publishCount)
         myNode.pubSubActor ! Subscribe(topic)
       }
 
@@ -43,12 +45,12 @@ class TestAppActor extends Actor with ActorLogging {
 
       for (i <- 1 to suicideAfter) {
         Thread.sleep(1000)
-        val topic = Random.nextInt(numberOfTopics)
-        log.info(s"Publishing -> T$topic")
-        myNode.pubSubActor ! Publish(s"T$topic", s"${myNode.name}:$i")
+        val topic = Random.nextInt(numberOfTopics - 1)
+        log.info(s"Publishing -> $topic")
+        publishCount = incrementCount(topic.toString, publishCount)
+        myNode.pubSubActor ! Publish(s"$topic", s"${myNode.name}:$i")
       }
 
-      Thread.sleep(5000)
 
     case PSDelivery(topic, m) =>
       receivedCount = incrementCount(topic, receivedCount)
@@ -68,8 +70,6 @@ class TestAppActor extends Actor with ActorLogging {
       val count = countOpt.get + 1
       mapAux += (topic -> count)
     }
-    else
-      mapAux += (topic -> 1)
 
     mapAux
   }
@@ -77,21 +77,36 @@ class TestAppActor extends Actor with ActorLogging {
 
   def printStats() = {
 
-    new PrintWriter(myNode.name) {
+    val file = new File(s"${myNode.name}.txt")
+    val pw = new BufferedWriter(new FileWriter(file))
 
-      write("Subscribed")
-      for (i <- randomTopics.indices) write(randomTopics(i).toString)
+    //    pw.write("Subscribed")
+    myTopics.foreach(t => println(s"1,$t,-1"))
 
-      write("Published")
-      publishCount.foreach(p => write(s"${p._1}:${p._2}"))
+    //    pw.write("Published")
+    publishCount.foreach(p => println(s"2,${p._1},${p._2}"))
 
-      write("Received")
-      receivedCount.foreach(p => write(s"${p._1}:${p._2}"))
+    //    pw.write("Received")
+    receivedCount.foreach(p => println(s"3,${p._1},${p._2}"))
 
-      close()
+    pw.close()
+
+  }
+
+
+  def populateMaps() = {
+    for (i <- 1 to numberOfTopics) {
+      publishCount += (i.toString -> 0)
+      receivedCount += (i.toString -> 0)
     }
+  }
 
 
+  def generateList(numberOfTopics: Int) = {
+    var list = List[Int]()
+    for (i <- 0 until numberOfTopics)
+      list ::= i
+    list
   }
 
 
