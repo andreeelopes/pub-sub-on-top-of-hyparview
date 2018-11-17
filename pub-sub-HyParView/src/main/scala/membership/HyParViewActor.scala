@@ -17,10 +17,10 @@ class HyParViewActor extends Actor with ActorLogging {
 
   var activeView: Map[Node, Date] = Map[Node, Date]()
   var passiveView: List[Node] = List[Node]()
-  val ARWL = 3
-  val PRWL = 3
-  val actViewMaxSize = 4
-  val passViewMaxSize = 10
+  val ARWL = 2 //TODO colocar a 3 para 20 nos
+  val PRWL = 2 //TODO colocar a 3 para 20 nos
+  val actViewMaxSize = 3 //TODO colocar a 4 para 20 nos
+  val passViewMaxSize = 4 //TODO colocar a 10 para 20 nos
 
   var receivedMsgs: List[Array[Byte]] = List[Array[Byte]]()
 
@@ -31,39 +31,40 @@ class HyParViewActor extends Actor with ActorLogging {
   val HighPriority = 1
   val LowPriority = 0
   //Passive View Management variables
-  val Ka = 2
-  val Kp = 2
-  val timeToLive = 2 //TTL for the exchange list TODO
+  val Ka = 1 //TODO colocar a 2 para 20 nos
+  val Kp = 1 //TODO colocar a 2 para 20 nos
+  val timeToLive = 2 //TTL for the exchange list
 
   var tcpAttempts: Map[Node, Cancellable] = Map[Node, Cancellable]()
   val HeartBeatPeriod = 2 //in seconds
 
   context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
-    Duration(30, TimeUnit.SECONDS), self, PassiveViewCyclicCheck)
+    Duration(2, TimeUnit.SECONDS), self, PassiveViewCyclicCheck)
 
-  //context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
-  //Duration(2, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
-
+  context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
+    Duration(2, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
 
   override def receive = {
 
     case s@Start(_, _) =>
       receiveStart(s)
 
-    case StartLocal(_contactNode_ : Node, _myNode_ : Node) =>
-      contactNode = _contactNode_
+    case StartLocal(_contactNode_, _myNode_) =>
       myNode = _myNode_
-      //log.info("Received contactNode: " + contactNode)
-      contactNode.membershipActor ! Join(myNode)
+      if (_contactNode_ != null) {
+        contactNode = _contactNode_
+        //log.info("Received contactNode: " + contactNode)
+        contactNode.membershipActor ! Join(myNode)
 
-      addNodeActView(contactNode)
+        addNodeActView(contactNode)
+      }
 
     //membership layer
     case j@Join(_) =>
       receiveJoin(j)
 
     //membership layer
-    case fj@ForwardJoin(_, _) =>
+    case fj@ForwardJoin(_, _, _) =>
       receiveForwardJoin(fj)
 
     //membership layer
@@ -112,7 +113,7 @@ class HyParViewActor extends Actor with ActorLogging {
       attemptActiveViewNodeReplacement(null)
 
     case Neighbor(senderNode, priority) =>
-      log.info(s"Active Management: Got a Neighbor Request from $senderNode with priority $priority!\n\t | #ActiveView = ${activeView.size} of $actViewMaxSize")
+      //log.info(s"Active Management: Got a Neighbor Request from $senderNode with priority $priority!\n\t | #ActiveView = ${activeView.size} of $actViewMaxSize")
       if (priority == HighPriority) {
         addNodeActView(senderNode)
         senderNode.membershipActor ! NeighborAccept(myNode)
@@ -123,71 +124,76 @@ class HyParViewActor extends Actor with ActorLogging {
           senderNode.membershipActor ! NeighborAccept(myNode)
         }
         else {
+          //no room to accept send reject
           senderNode.membershipActor ! NeighborReject(myNode)
         }
       }
 
-    case NeighborAccept(node: Node) =>
-      log.info(s"Got a Neighbor Accept from $node")
+    case NeighborAccept(node) =>
+      //log.info(s"Got a Neighbor Accept from $node")
       dropNodeFromPassiveView(node)
       addNodeActView(node)
 
-    case NeighborReject(node: Node) =>
-      log.info(s"Got a Neighbor Reject from $node")
+    case NeighborReject(node) =>
+      //log.info(s"Got a Neighbor Reject from $node")
       attemptActiveViewNodeReplacement(node)
 
-    case ActiveViewCyclicCheck() =>
-      log.info(s"Active View Periodic Check aka heartbeat")
+
+    case Heartbeat(senderNode) =>
+      activeView += (senderNode -> Utils.getDate)
+
+    case ActiveViewCyclicCheck =>
       val aliveNodes = activeView.filter(pair => pair._2.after(Utils.getDatePlusTime(-(3 * HeartBeatPeriod))))
       val deadNodes = activeView.filter(pair => !aliveNodes.contains(pair._1))
 
+      log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
       deadNodes.foreach(dead => myNode.membershipActor ! TcpDisconnectOrBlocked(dead._1))
-      aliveNodes.foreach(p => p._1.membershipActor ! Heartbeat)
+      aliveNodes.foreach(p => p._1.membershipActor ! Heartbeat(myNode))
+    //printActiveViewState() //TODO remove print
+    //printPassiveViewState() //TODO remove print
 
     //Passive view management
     case PassiveViewCyclicCheck =>
-      val q = Utils.pickRandomN(activeView.keys.toList, 1).head
-      log.info(s"Passive View Periodic Check | target of Shuffle Message = $q")
+      if (activeView.nonEmpty) {
+        val q = Utils.pickRandomN(activeView.keys.toList, 1).head
+        //        log.info(s"Passive View Periodic Check | (random)target of Shuffle Message = $q")
 
-      val exchangeList = myNode :: Utils.pickRandomN(passiveView, Kp) ::: Utils.pickRandomN(activeView.keys.toList, Ka)
+        val exchangeList = myNode :: Utils.pickRandomN(passiveView, Kp) ::: Utils.pickRandomN(activeView.keys.toList, Ka)
 
-      q.membershipActor ! ShuffleMsg(myNode, exchangeList, timeToLive)
+        q.membershipActor ! ShuffleMsg(myNode, exchangeList, timeToLive)
+      }
 
-    case ShuffleMsg(senderNode: Node, exchangeList: List[Node], ttl: Int) =>
+    case ShuffleMsg(senderNode, exchangeList, ttl) =>
       val newTtl = ttl - 1
       if (newTtl > 0 && activeView.size > 1) { // If TTL > 0 then keep random walk going
         val peer = Utils.pickRandomN(activeView.keys.toList.filter(node => !node.equals(senderNode)), 1).head
-        log.info(s"Shuffle: Forwarded to $peer")
-        Thread.sleep(5000) //TODO remove
+        //log.info(s"Shuffle: Forwarded to $peer")
         peer.membershipActor ! ShuffleMsg(myNode, exchangeList, newTtl)
       }
       else {
         val passiveViewSample = Utils.pickRandomN(passiveView, exchangeList.size)
-        log.info(s"Shuffle: Replied to $senderNode")
-        Thread.sleep(5000) //TODO remove
+        //log.info(s"Shuffle: Randow walk from $senderNode stopped on me ")
         senderNode.membershipActor ! ShuffleReplyMsg(myNode, passiveViewSample, exchangeList)
 
         mergePassiveView(exchangeList, passiveViewSample)
       }
 
     //note that here the note receiving the reply is the one who sent the exchangeList
-    case ShuffleReplyMsg(senderNode: Node, passiveViewSample: List[Node], exchangeList: List[Node]) =>
-      log.info(s"Shuffle: Got Shuffle Reply from $senderNode")
-      Thread.sleep(5000) //TODO remove
+    case ShuffleReplyMsg(senderNode, passiveViewSample, exchangeList) =>
+      //log.info(s"Shuffle: Got Shuffle Reply from $senderNode")
 
       mergePassiveView(passiveViewSample, exchangeList)
   }
 
-  def TcpDisconnectOrBlocked(failedNode: Node) = {
+  def TcpDisconnectOrBlocked(failedNode: Node): Unit = {
     log.info(s"TCP: connection with $failedNode might have failed")
     dropNodeActiveView(failedNode)
     attemptActiveViewNodeReplacement(null)
   }
 
   def mergePassiveView(toAdd: List[Node], sent: List[Node]): Unit = {
-    log.info(s"Merging $toAdd into Passive | sent: $sent")
-    Thread.sleep(5000)
-    //TODO remove
+    //log.info(s"Merging $toAdd into my Passive View | sent: $sent")
+
     val filteredToAddNodes = toAdd.filter(n => !passiveView.contains(n) && !n.equals(myNode))
     var sentPvNodes = sent.intersect(passiveView)
     filteredToAddNodes.foreach { n =>
@@ -231,7 +237,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
     addNodeActView(joinMsg.newNode)
     activeView.keys.toList.filter(n => !n.equals(joinMsg.newNode))
-      .foreach(n => n.membershipActor ! ForwardJoin(joinMsg.newNode, ARWL))
+      .foreach(n => n.membershipActor ! ForwardJoin(joinMsg.newNode, ARWL, myNode))
   }
 
   def receiveForwardJoin(forwardMsg: ForwardJoin): Unit = {
@@ -247,10 +253,10 @@ class HyParViewActor extends Actor with ActorLogging {
         //log.info(s"Forward Join: Stopped on me | Gonna Add Passive")
       }
 
-      val n = Utils.pickRandomN[Node](activeView.keys.toList.filter(n => !n.equals(n)), 1).head
+      val n = Utils.pickRandomN[Node](activeView.keys.toList.filter(node => !node.equals(forwardMsg.senderNode)), 1).head //TODO head pode nao existir se a lista vier vazia
 
       //log.info(s"Forward Join: forwarding to $n")
-      n.membershipActor ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1)
+      n.membershipActor ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1, myNode)
     }
   }
 
@@ -272,32 +278,38 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def attemptActiveViewNodeReplacement(filterOut: Node): Unit = {
-    log.info(s"Management Active View: attempting")
 
-    var q: Node = null
+    var random: List[Node] = null
 
     if (filterOut == null) {
-      q = Utils.pickRandomN(passiveView, 1).head
+      random = Utils.pickRandomN(passiveView, 1)
     }
     else {
-      q = Utils.pickRandomN(passiveView.filter(node => !node.equals(filterOut)), 1).head
+      random = Utils.pickRandomN(passiveView.filter(node => !node.equals(filterOut)), 1)
     }
 
-    q.membershipActor ! AttemptTcpConnection(myNode)
-    val timer = context.system.scheduler.schedule(Duration.Zero,
-      Duration(50 * HeartBeatPeriod, TimeUnit.SECONDS), self, TcpFailed(q)) //TODO POR O TIMER A 3* this timer is used to fake a Tcp connection failure
-    tcpAttempts += (q -> timer)
+    if (random.nonEmpty) {
+
+      //log.info(s"Management Active View: attempting")
+
+      val q = random.head
+
+      q.membershipActor ! AttemptTcpConnection(myNode)
+      val timer = context.system.scheduler.schedule(Duration.Zero,
+        Duration(3 * HeartBeatPeriod, TimeUnit.SECONDS), self, TcpFailed(q)) //this timer is used to fake a Tcp connection failure
+      tcpAttempts += (q -> timer)
+    }
   }
 
   def addNodeActView(newNode: Node, warnNewNode: Boolean = false): Unit = {
-    if (!newNode.equals(myNode) && !activeView.contains(newNode)) {
+    if (!newNode.equals(myNode) && !activeView.contains(newNode) && !passiveView.contains(newNode)) {
       if (activeView.size == actViewMaxSize)
         dropRandomElemActView()
-      log.info(s"Active View: Add($newNode)")
       activeView += (newNode -> Utils.getDate)
       if (warnNewNode)
         newNode.membershipActor ! addToActiveWarning(myNode)
-      log.info(s"Active View: ${activeView.map(p => p._1)} \n\t | size: ${activeView.size}")
+      //log.info(s"Active View: Add($newNode)")
+      //log.info(s"Active View: ${activeView.keys} \n\t | size: ${activeView.size}")
     }
 
   }
@@ -308,17 +320,18 @@ class HyParViewActor extends Actor with ActorLogging {
         val n: Node = Utils.pickRandomN(activeView.keys.toList, 1).head
         passiveView = passiveView.filter(elem => !elem.equals(n))
       }
-      log.info(s"Passive View: Add($newNode)")
-      log.info(s"Passive View: ${passiveView.toString()} \n\t | size: ${passiveView.size}")
 
       passiveView ::= newNode
+
+      //log.info(s"Passive View: Add($newNode)")
+      //log.info(s"Passive View: ${passiveView.toString()} \n\t | size: ${passiveView.size}")
     }
   }
 
   def dropNodeActiveView(nodeToRemove: Node): Unit = {
     activeView = activeView.filter(n => !n._1.equals(nodeToRemove))
-    log.info(s"Active View: Drop($nodeToRemove)")
-    log.info(s"Active View: ${activeView.map(p => p._1)} \n\t | size: ${activeView.size}")
+    //log.info(s"Active View: Drop($nodeToRemove)")
+    // log.info(s"Active View: ${activeView.map(p => p._1)} \n\t | size: ${activeView.size}")
 
   }
 
@@ -329,8 +342,8 @@ class HyParViewActor extends Actor with ActorLogging {
 
 
   def dropNodeFromPassiveView(q: Node): Unit = {
-    log.info(s"Passive View: Drop($q)")
-    log.info(s"Passive View: ${passiveView.toString()} \n\t | size: ${passiveView.size}")
+    //log.info(s"Passive View: Drop($q)")
+    //log.info(s"Passive View: ${passiveView.toString()} \n\t | size: ${passiveView.size}")
 
     passiveView = passiveView.filter(node => !node.equals(q))
   }
@@ -352,6 +365,6 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def printActiveViewState(): Unit = {
-    log.info(s"Active View: ${activeView.map(p => p._1)} \n\t | size: ${activeView.size}")
+    log.info(s"Active View: ${activeView.keys} \n\t | size: ${activeView.size}")
   }
 }

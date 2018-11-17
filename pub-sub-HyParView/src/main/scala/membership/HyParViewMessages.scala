@@ -5,7 +5,7 @@ import utils.Node
 
 case class Join(newNode: Node)
 
-case class ForwardJoin(newNode: Node, ttl: Long)
+case class ForwardJoin(newNode: Node, ttl: Long, senderNode : Node)
 
 case class Disconnect(node: Node)
 

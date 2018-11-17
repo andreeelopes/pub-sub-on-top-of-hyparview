@@ -3,7 +3,7 @@ package membership
 import utils.Node
 
 
-case class PassiveViewCyclicCheck()
+object PassiveViewCyclicCheck
 
 case class ShuffleMsg(senderNode: Node, exchangeList: List[Node], timeToLive: Int)
 

@@ -1,6 +1,8 @@
 package membership
 
+import utils.Node
 
-case class ActiveViewCyclicCheck()
 
-case class Heartbeat()
+object ActiveViewCyclicCheck
+
+case class Heartbeat(senderNode: Node)
