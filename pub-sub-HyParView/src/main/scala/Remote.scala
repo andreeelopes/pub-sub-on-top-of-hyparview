@@ -23,7 +23,7 @@ object Remote extends App {
     val gossipActor = system.actorOf(Props(new GossipActor(3)), "gossip")
     val membershipActor = system.actorOf(Props[HyParViewActor], "membership")
 
-    val node = Node(s"$ip:$port", testAppActor, pubSubActor, gossipActor, membershipActor)
+    val node = Node(s"$port", testAppActor, pubSubActor, gossipActor, membershipActor)
     println("MyNode: " + node)
 
     var contactAkkaId: String = null
@@ -45,7 +45,7 @@ object Remote extends App {
 
     testAppActor ! Start(node)
 
-    Thread.sleep(3 * 60 * 1000)
+    Thread.sleep(1 * 60 * 1000)
 
     testAppActor ! StatsAndDie
 

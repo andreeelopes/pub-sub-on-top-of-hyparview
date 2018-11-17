@@ -19,7 +19,7 @@ class TestAppActor extends Actor with ActorLogging {
   var publishCount = Map[String, Int]()
   var receivedCount = Map[String, Int]()
 
-  var suicideAfter = 60
+  var suicideAfter = 10
 
   var myTopics = List[Int]()
 
@@ -80,14 +80,14 @@ class TestAppActor extends Actor with ActorLogging {
     val file = new File(s"${myNode.name}.txt")
     val pw = new BufferedWriter(new FileWriter(file))
 
-    //    pw.write("Subscribed")
-    myTopics.foreach(t => println(s"1,$t,-1"))
+    pw.write("Subscribed")
+    myTopics.foreach(t => pw.write(s"1,$t,-1"))
 
-    //    pw.write("Published")
-    publishCount.foreach(p => println(s"2,${p._1},${p._2}"))
+    pw.write("Published")
+    publishCount.foreach(p => pw.write(s"2,${p._1},${p._2}"))
 
-    //    pw.write("Received")
-    receivedCount.foreach(p => println(s"3,${p._1},${p._2}"))
+    pw.write("Received")
+    receivedCount.foreach(p => pw.write(s"3,${p._1},${p._2}"))
 
     pw.close()
 

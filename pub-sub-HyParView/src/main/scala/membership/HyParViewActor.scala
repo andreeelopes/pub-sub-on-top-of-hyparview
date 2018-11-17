@@ -9,18 +9,15 @@ import utils.{Node, Utils}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-//TODO Verificar filters a ver se nao falta  bla = bla.filter(...)
-//TODO Nao esquecer da simetria na active view
-
 
 class HyParViewActor extends Actor with ActorLogging {
 
   var activeView: Map[Node, Date] = Map[Node, Date]()
   var passiveView: List[Node] = List[Node]()
-  val ARWL = 2 //TODO colocar a 3 para 20 nos
-  val PRWL = 2 //TODO colocar a 3 para 20 nos
-  val actViewMaxSize = 3 //TODO colocar a 4 para 20 nos
-  val passViewMaxSize = 4 //TODO colocar a 10 para 20 nos
+  val ARWL = 3
+  val PRWL = 3
+  val actViewMaxSize = 4
+  val passViewMaxSize = 10
 
   var receivedMsgs: List[Array[Byte]] = List[Array[Byte]]()
 
@@ -31,8 +28,8 @@ class HyParViewActor extends Actor with ActorLogging {
   val HighPriority = 1
   val LowPriority = 0
   //Passive View Management variables
-  val Ka = 1 //TODO colocar a 2 para 20 nos
-  val Kp = 1 //TODO colocar a 2 para 20 nos
+  val Ka = 2
+  val Kp = 2
   val timeToLive = 2 //TTL for the exchange list
 
   var tcpAttempts: Map[Node, Cancellable] = Map[Node, Cancellable]()
@@ -42,7 +39,7 @@ class HyParViewActor extends Actor with ActorLogging {
     Duration(2, TimeUnit.SECONDS), self, PassiveViewCyclicCheck)
 
   context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
-    Duration(2, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
+    Duration(HeartBeatPeriod, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
 
   override def receive = {
 
@@ -104,11 +101,11 @@ class HyParViewActor extends Actor with ActorLogging {
         priority = HighPriority
       else
         priority = LowPriority
-      log.info(s"TCP: connection success with $senderNode sending a NeighborRequest: ${Neighbor(myNode, priority)}")
+     // log.info(s"TCP: connection success with $senderNode sending a NeighborRequest: ${Neighbor(myNode, priority)}")
       senderNode.membershipActor ! Neighbor(myNode, priority) //TCPSend(q | NEIGHBOR, myself, priority)
 
     case TcpFailed(remoteNode: Node) =>
-      log.info(s"TCP: connection failed with $remoteNode")
+     // log.info(s"TCP: connection failed with $remoteNode")
       dropNodeFromPassiveView(remoteNode)
       attemptActiveViewNodeReplacement(null)
 
@@ -146,7 +143,7 @@ class HyParViewActor extends Actor with ActorLogging {
       val aliveNodes = activeView.filter(pair => pair._2.after(Utils.getDatePlusTime(-(3 * HeartBeatPeriod))))
       val deadNodes = activeView.filter(pair => !aliveNodes.contains(pair._1))
 
-      log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
+     // log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
       deadNodes.foreach(dead => myNode.membershipActor ! TcpDisconnectOrBlocked(dead._1))
       aliveNodes.foreach(p => p._1.membershipActor ! Heartbeat(myNode))
     //printActiveViewState() //TODO remove print
@@ -161,6 +158,9 @@ class HyParViewActor extends Actor with ActorLogging {
         val exchangeList = myNode :: Utils.pickRandomN(passiveView, Kp) ::: Utils.pickRandomN(activeView.keys.toList, Ka)
 
         q.membershipActor ! ShuffleMsg(myNode, exchangeList, timeToLive)
+
+        printPassiveViewState()
+        printActiveViewState()
       }
 
     case ShuffleMsg(senderNode, exchangeList, ttl) =>
@@ -186,15 +186,15 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
   def TcpDisconnectOrBlocked(failedNode: Node): Unit = {
-    log.info(s"TCP: connection with $failedNode might have failed")
+    //log.info(s"TCP: connection with $failedNode might have failed")
     dropNodeActiveView(failedNode)
     attemptActiveViewNodeReplacement(null)
   }
 
   def mergePassiveView(toAdd: List[Node], sent: List[Node]): Unit = {
-    //log.info(s"Merging $toAdd into my Passive View | sent: $sent")
+    //log.info(s"Merging $toAdd into my Passive View | sent: $sent \n\t | Views before merge: \n\t\t\t Passive = $passiveView | Active = $activeView")
 
-    val filteredToAddNodes = toAdd.filter(n => !passiveView.contains(n) && !n.equals(myNode))
+    val filteredToAddNodes = toAdd.filter(n => !passiveView.contains(n) && !activeView.contains(n) && !n.equals(myNode))
     var sentPvNodes = sent.intersect(passiveView)
     filteredToAddNodes.foreach { n =>
       if (passiveView.size != passViewMaxSize)
@@ -213,8 +213,8 @@ class HyParViewActor extends Actor with ActorLogging {
       }
     }
 
-    printPassiveViewState()
-    printActiveViewState()
+//    printPassiveViewState()
+//    printActiveViewState()
   }
 
   def receiveStart(startMsg: Start): Unit = {
@@ -361,10 +361,10 @@ class HyParViewActor extends Actor with ActorLogging {
 
 
   def printPassiveViewState(): Unit = {
-    log.info(s"Passive View: ${passiveView.toString()} \n\t | size: ${passiveView.size}")
+    log.info(s"Passive View: ${passiveView.toString()} \n\t\t | size: ${passiveView.size}")
   }
 
   def printActiveViewState(): Unit = {
-    log.info(s"Active View: ${activeView.keys} \n\t | size: ${activeView.size}")
+    log.info(s"Active View: ${activeView.keys} \n\t\t | size: ${activeView.size}")
   }
 }
