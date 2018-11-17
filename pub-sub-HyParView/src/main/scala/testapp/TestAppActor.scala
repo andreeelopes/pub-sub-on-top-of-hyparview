@@ -43,9 +43,9 @@ class TestAppActor extends Actor with ActorLogging {
 
       Thread.sleep(5000)
 
-      for (i <- 1 to suicideAfter) {
+      for (i <- 0 to suicideAfter) {
         Thread.sleep(1000)
-        val topic = Random.nextInt(numberOfTopics - 1)
+        val topic = Random.nextInt(numberOfTopics)
         log.info(s"Publishing -> $topic")
         publishCount = incrementCount(topic.toString, publishCount)
         myNode.pubSubActor ! Publish(s"$topic", s"${myNode.name}:$i")
@@ -81,13 +81,13 @@ class TestAppActor extends Actor with ActorLogging {
     val pw = new BufferedWriter(new FileWriter(file))
 
     //    pw.write("Subscribed")
-    myTopics.foreach(t => println(s"1,$t,-1"))
+    myTopics.foreach(t => println(s"$myNode,1,$t,-1"))
 
     //    pw.write("Published")
-    publishCount.foreach(p => println(s"2,${p._1},${p._2}"))
+    publishCount.foreach(p => println(s"$myNode,2,${p._1},${p._2}"))
 
     //    pw.write("Received")
-    receivedCount.foreach(p => println(s"3,${p._1},${p._2}"))
+    receivedCount.foreach(p => println(s"$myNode,3,${p._1},${p._2}"))
 
     pw.close()
 
@@ -95,7 +95,7 @@ class TestAppActor extends Actor with ActorLogging {
 
 
   def populateMaps() = {
-    for (i <- 1 to numberOfTopics) {
+    for (i <- 0 until numberOfTopics) {
       publishCount += (i.toString -> 0)
       receivedCount += (i.toString -> 0)
     }
@@ -104,8 +104,9 @@ class TestAppActor extends Actor with ActorLogging {
 
   def generateList(numberOfTopics: Int) = {
     var list = List[Int]()
-    for (i <- 0 until numberOfTopics)
+    for (i <- 0 until numberOfTopics) {
       list ::= i
+    }
     list
   }
 
