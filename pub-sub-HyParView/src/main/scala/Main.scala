@@ -1,3 +1,4 @@
+/*
 import akka.actor.{ActorSystem, Props}
 import akka.actor.{ActorLogging, ActorSystem, PoisonPill, Props}
 import akka.event.Logging
@@ -55,4 +56,4 @@ object Main extends App {
     aHyParView ! PoisonPill
 
   }
-}
+}*/
