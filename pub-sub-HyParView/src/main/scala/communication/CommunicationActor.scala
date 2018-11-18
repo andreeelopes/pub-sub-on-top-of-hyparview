@@ -7,9 +7,9 @@ import utils.{Node, Start, Utils}
 class CommunicationActor(f: Int) extends Actor with ActorLogging {
 
   var neighbors = List[Node]()
-  var pending = Map[Array[Byte], Object]()
-  var delivered = Set[Array[Byte]]()
-  val fanout = f //TODO pass as a message of HyParView?
+  var pending = Map[String, Object]()
+  var delivered = Set[String]()
+  val fanout = f
 
   var myNode: Node = _
 
@@ -20,8 +20,8 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
 
   override def receive = {
 
-    case MetricsRequest => //TODO double-check
-      myNode.testAppActor ! MetricsDelivery("communication",outgoingMessages, incomingMessages)
+    case MetricsRequest =>
+      myNode.testAppActor ! MetricsDelivery("communication", outgoingMessages, incomingMessages)
 
     case s@Start(_) =>
       receiveStart(s)
@@ -47,7 +47,7 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
       incomingMessages += 1
       receiveDirectMsg(dm)
 
-    case req@DirectMessageRequest(_,_) =>
+    case req@DirectMessageRequest(_, _) =>
       receiveDirectMsgRequest(req)
   }
 
@@ -57,9 +57,12 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
   }
 
 
-  def receivePassGossip(passGossipMsg: PassGossip[Any]) = {
+  def receivePassGossip[A](passGossipMsg: PassGossip[A]) = {
     incomingMessages += 1
     if (!delivered.contains(passGossipMsg.mid)) {
+
+      log.info(s"Received PassGossip Request: $passGossipMsg")
+
       delivered += passGossipMsg.mid
       myNode.pubSubActor ! GossipDelivery(passGossipMsg.message)
     }
@@ -69,18 +72,24 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 
+      log.info(s"Received Gossip Request: $gossipMsg")
+
       pending += (gossipMsg.mid -> gossipMsg)
       myNode.membershipActor ! GetNeighbors(fanout, myNode)
+      myNode
     }
 
   }
 
   def receiveSend[A](sendMsg: Send[A]) = {
-      if (!delivered.contains(sendMsg.mid)) {
-        delivered += sendMsg.mid
 
-        myNode.pubSubActor ! GossipDelivery(sendMsg.message)
-      }
+    if (!delivered.contains(sendMsg.mid)) {
+      delivered += sendMsg.mid
+
+      log.info(s"Received Send: $sendMsg")
+
+      myNode.pubSubActor ! GossipDelivery(sendMsg.message)
+    }
   }
 
 
@@ -114,12 +123,5 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
     req.target.communicationActor ! req.directMessage
   }
 
-
-  /*case class DirectMessageRequest(target : Node, directMessage : DirectMessage)
-
-case class DirectMessageDelivery(directMessage : DirectMessage)
-
-case class DirectMessage(topic: String, message: String, mid: Array[Byte])
-*/
 
 }

@@ -19,7 +19,7 @@ object Remote extends App {
     val system = ActorSystem("RemoteService", config)
 
     val testAppActor = system.actorOf(Props[TestAppActor], "testApp")
-    val pubSubActor = system.actorOf(Props(new PubSubActor(2)), "pubSub")
+    val pubSubActor = system.actorOf(Props(new PubSubActor(20)), "pubSub")
     val communicationActor = system.actorOf(Props(new CommunicationActor(3)), "communication")
     val membershipActor = system.actorOf(Props[HyParViewActor], "membership")
 
@@ -46,7 +46,7 @@ object Remote extends App {
 
     testAppActor ! Start(node)
 
-    Thread.sleep(1 * 60 * 1000)
+    Thread.sleep(2 * 60 * 1000)
 
     testAppActor ! StatsAndDie
 

@@ -11,7 +11,8 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 
 class HyParViewActor extends Actor with ActorLogging {
 
-  var activeView: Map[Node, Date] = Map[Node, Date]()// note that the Date here is to help in the simulation of the TCP connection
+  var activeView: Map[Node, Date] = Map[Node, Date]()
+  // note that the Date here is to help in the simulation of the TCP connection
   var passiveView: List[Node] = List[Node]()
   val ARWL = 3
   val PRWL = 3
@@ -47,7 +48,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
 
     case MetricsRequest => //TODO double-check
-      myNode.testAppActor ! MetricsDelivery("hyparview",outgoingMessages, incomingMessages)
+      myNode.testAppActor ! MetricsDelivery("hyparview", outgoingMessages, incomingMessages)
 
     case s@Start(_, _) =>
       receiveStart(s)
@@ -96,7 +97,6 @@ class HyParViewActor extends Actor with ActorLogging {
       outgoingMessages += 1
 
 
-
       contactNode = node
       log.info("Received contactNode: " + node)
       contactNode.membershipActor ! Join(myNode)
@@ -121,12 +121,16 @@ class HyParViewActor extends Actor with ActorLogging {
     case TcpSuccess(senderNode: Node) =>
       incomingMessages += 1
 
+      val timer = tcpAttempts(senderNode)
+      timer.cancel()
+      tcpAttempts -= senderNode
+
       var priority = -1
       if (activeView.isEmpty)
         priority = HighPriority
       else
         priority = LowPriority
-     // log.info(s"TCP: connection success with $senderNode sending a NeighborRequest: ${Neighbor(myNode, priority)}")
+      // log.info(s"TCP: connection success with $senderNode sending a NeighborRequest: ${Neighbor(myNode, priority)}")
       senderNode.membershipActor ! Neighbor(myNode, priority) //TCPSend(q | NEIGHBOR, myself, priority)
       outgoingMessages += 1
 
@@ -173,17 +177,18 @@ class HyParViewActor extends Actor with ActorLogging {
     case Heartbeat(senderNode) =>
       incomingMessages += 1
 
-      activeView += (senderNode -> Utils.getDate)
+      if (activeView.keys.toList.contains(senderNode))
+        activeView += (senderNode -> Utils.getDate)
 
     case ActiveViewCyclicCheck =>
       val aliveNodes = activeView.filter(pair => pair._2.after(Utils.getDatePlusTime(-(3 * HeartBeatPeriod))))
       val deadNodes = activeView.filter(pair => !aliveNodes.contains(pair._1))
 
-     // log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
+      // log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
       deadNodes.foreach(dead => myNode.membershipActor ! TcpDisconnectOrBlocked(dead._1))
       aliveNodes.foreach(p => p._1.membershipActor ! Heartbeat(myNode))
-    //printActiveViewState() //TODO remove print
-    //printPassiveViewState() //TODO remove print
+      //printActiveViewState() //TODO remove print
+      //printPassiveViewState() //TODO remove print
 
       outgoingMessages += (1 * aliveNodes.size)
 
@@ -233,7 +238,6 @@ class HyParViewActor extends Actor with ActorLogging {
   }
 
 
-
   def TcpDisconnectOrBlocked(failedNode: Node): Unit = {
     //log.info(s"TCP: connection with $failedNode might have failed")
     dropNodeActiveView(failedNode)
@@ -262,8 +266,8 @@ class HyParViewActor extends Actor with ActorLogging {
       }
     }
 
-//    printPassiveViewState()
-//    printActiveViewState()
+    //    printPassiveViewState()
+    //    printActiveViewState()
   }
 
   def receiveStart(startMsg: Start): Unit = {

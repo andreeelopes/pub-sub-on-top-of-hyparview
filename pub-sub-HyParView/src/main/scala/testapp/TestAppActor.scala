@@ -29,14 +29,22 @@ class TestAppActor extends Actor with ActorLogging {
   var publishCount = Map[String, Int]()
   var receivedCount = Map[String, Int]()
 
-  var suicideAfter = 10
+  var suicideAfter = 60
+  var counter = 0
 
   var myTopics = List[Int]()
 
   val randomTopics = Random.shuffle(generateList(numberOfTopics)).take(subscribeN)
 
-  context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
     Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived)
+
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(1, TimeUnit.SECONDS), self, Publish("", ""))
+
+  context.system.scheduler.scheduleOnce(FiniteDuration(10, TimeUnit.SECONDS),
+    self, MetricsRequest)
+
 
   populateMaps()
 
@@ -54,29 +62,29 @@ class TestAppActor extends Actor with ActorLogging {
         myNode.pubSubActor ! Subscribe(topic)
       }
 
-      Thread.sleep(5000)
-
-      for (i <- 0 to suicideAfter) {
-        Thread.sleep(1000)
-        val topic = Random.nextInt(numberOfTopics)
-        log.info(s"Publishing -> $topic")
-        publishCount = incrementCount(topic.toString, publishCount)
-        myNode.pubSubActor ! Publish(s"$topic", s"${myNode.name}:$i")
-      }
-
-      Thread.sleep(1000)
-
-      myNode.communicationActor ! MetricsRequest
-      myNode.membershipActor ! MetricsRequest
-      myNode.pubSubActor ! MetricsRequest
-
-
     case PSDelivery(topic, m) =>
       receivedCount = incrementCount(topic, receivedCount)
       log.info(s"Received -> ($topic):$m")
 
+    case Publish(_, _) =>
+      if (suicideAfter > counter) {
+        val topic = Random.nextInt(numberOfTopics)
+        log.info(s"Publishing -> $topic")
+        publishCount = incrementCount(topic.toString, publishCount)
+        myNode.pubSubActor ! Publish(s"$topic", s"${myNode.name}:$counter")
+      }
+
+      counter += 1
+
     case StatsAndDie =>
       printStats()
+
+    case MetricsRequest =>
+      if (suicideAfter < counter) {
+        myNode.communicationActor ! MetricsRequest
+        myNode.membershipActor ! MetricsRequest
+        myNode.pubSubActor ! MetricsRequest
+      }
 
     case MetricsDelivery(layer, outgoingMessages, incomingMessages) =>
       metrics += (layer -> List(outgoingMessages, incomingMessages))

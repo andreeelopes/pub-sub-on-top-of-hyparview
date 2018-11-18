@@ -2,6 +2,7 @@
 
 rm ../rawoutput/*
 rm ../results/*
+rm ../logs/*
 
 nNodes=$1
 ip=$2
@@ -14,6 +15,6 @@ for run in $(seq 1 $((nNodes-1)))
 do
 	let myPort=$((port+run))
 	echo "deploying Node $run at $ip : $myPort"
-	java -cp ../pub-sub-HyParView-assembly-0.1.jar Remote $run $ip $myPort $ip $port > ../logs/out$myPort.log 2 &
+	java -cp ../pub-sub-HyParView-assembly-0.1.jar Remote $run $ip $myPort $ip $((myPort-1)) > ../logs/out$myPort.log 2 &
 done
 
