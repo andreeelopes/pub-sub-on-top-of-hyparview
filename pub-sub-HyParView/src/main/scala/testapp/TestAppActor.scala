@@ -77,7 +77,7 @@ class TestAppActor extends Actor with ActorLogging {
 
   def printStats() = {
 
-    val file = new File(s"deploy/results/${myNode.name}.csv")
+    val file = new File(s"deploy/rawoutput/${myNode.name}.csv")
     val pw = new BufferedWriter(new FileWriter(file))
 
     //    pw.write("Subscribed")

@@ -27,7 +27,7 @@ object ComputeStats {
     }
 
 
-    for (line <- Source.fromFile("deploy/results/processedresults/results.csv").getLines) {
+    for (line <- Source.fromFile("deploy/results/results.csv").getLines) {
       val columns = line.split(",")
 
       val nodeId = columns(0).toInt
@@ -159,16 +159,16 @@ object ComputeStats {
 
 
 
-    val file1 = new File("deploy/results/processedresults/totalAccuracy.csv")
+    val file1 = new File("deploy/results/totalAccuracy.csv")
     val pw1 = new BufferedWriter(new FileWriter(file1))
     pw1.write(s"${totalAccuracy.toString}\n")
 
-    val file2 = new File("deploy/results/processedresults/accuracyByTopic.csv")
+    val file2 = new File("deploy/results/accuracyByTopic.csv")
     val pw2 = new BufferedWriter(new FileWriter(file2))
     accuracyByTopic.foreach(p => pw2.write(s"${p._1},${p._2}\n"))
 
 
-    val file3 = new File("deploy/results/processedresults/publishTotal.csv")
+    val file3 = new File("deploy/results/publishTotal.csv")
     val pw3 = new BufferedWriter(new FileWriter(file3))
     publishTotal.foreach(p => pw3.write(s"${p._1},${p._2}\n"))
 
