@@ -13,6 +13,9 @@ object ComputeStats {
 
     var publishTotal = Map[Int, Int]() //topic,count
 
+    var networkMessages = Map[String, (Int, Int)]() //hyparview,List(sent, received)
+
+
     for (i <- 0 until 50) {
       subsByNode += (i -> List())
     }
@@ -26,6 +29,8 @@ object ComputeStats {
       publishTotal += (i -> 0)
     }
 
+    networkMessages += ("hyparview" -> (0, 0))
+    networkMessages += ("gossip" -> (0, 0))
 
     for (line <- Source.fromFile("../results/results.csv").getLines) {
       val columns = line.split(",")
@@ -45,7 +50,12 @@ object ComputeStats {
           var topicCountList = deliveredByNode(nodeId)
           topicCountList ::= (columns(2).toInt, columns(3).toInt)
           deliveredByNode = deliveredByNode.updated(nodeId, topicCountList)
-        case _ =>
+        case "4" =>
+          var layerNetworkMessages = networkMessages(columns(2))
+          layerNetworkMessages =
+            (layerNetworkMessages._1 + columns(3).toInt, layerNetworkMessages._1 + columns(3).toInt)
+
+          networkMessages = networkMessages.updated(columns(2), layerNetworkMessages)
       }
 
     }
@@ -95,9 +105,11 @@ object ComputeStats {
           val deliveredOfNodeList = deliveredByNode(node_ListTopicCount._1).filter(tc => tc._1.equals(topic_count._1))
           if (deliveredOfNodeList.isEmpty)
             accuracy = 0
-          else
+          else {
             accuracy = deliveredOfNodeList.head._2.toDouble / topicTotalCount.toDouble
+          }
         }
+
 
         (topic_count._1, accuracy)
 
@@ -158,8 +170,13 @@ object ComputeStats {
     println(s"TotalAccuracy: $totalAccuracy")
 
 
+    //Total network messages
+
+    val sentTotal = networkMessages.values.map(p => p._1).sum
+    val receivedTotal = networkMessages.values.map(p => p._2).sum
 
 
+    //Persist
     val file1 = new File("../results/totalAccuracy.csv")
     val pw1 = new BufferedWriter(new FileWriter(file1))
     pw1.write(s"${totalAccuracy.toString}\n")
@@ -173,10 +190,15 @@ object ComputeStats {
     val pw3 = new BufferedWriter(new FileWriter(file3))
     publishTotal.foreach(p => pw3.write(s"${p._1},${p._2}\n"))
 
+    val file4 = new File("../results/networkMessages.csv")
+    val pw4 = new BufferedWriter(new FileWriter(file4))
+    networkMessages.foreach(p => pw4.write(s"${p._1} - sent(${p._2._1}); received(${p._2._2})\n"))
+    pw4.write(s"sentTotal: $sentTotal, receivedTotal: $receivedTotal\n")
 
     pw1.close()
     pw2.close()
     pw3.close()
+    pw4.close()
 
   }
 
