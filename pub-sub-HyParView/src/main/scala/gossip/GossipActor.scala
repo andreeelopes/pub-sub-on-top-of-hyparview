@@ -49,6 +49,7 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
 
   def receivePassGossip(passGossipMsg: PassGossip[Any]) = {
+    incomingMessages += 1
     if (!delivered.contains(passGossipMsg.mid)) {
       delivered += passGossipMsg.mid
       myNode.pubSubActor ! GossipDelivery(passGossipMsg.message)
@@ -56,7 +57,6 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
   }
 
   def receiveGossip[A](gossipMsg: Gossip[A]) = {
-    incomingMessages += 1
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 

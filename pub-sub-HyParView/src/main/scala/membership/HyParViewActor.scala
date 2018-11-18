@@ -9,7 +9,6 @@ import utils.{Node, Utils}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-//TODO ja nao me lembro se nao havia um timer que tinha que ser eliminado
 class HyParViewActor extends Actor with ActorLogging {
 
   var activeView: Map[Node, Date] = Map[Node, Date]()// note that the Date here is to help in the simulation of the TCP connection
@@ -80,14 +79,24 @@ class HyParViewActor extends Actor with ActorLogging {
 
     //membership layer
     case a@ActorIdentity(_, _) =>
+      incomingMessages += 1
+
       receiveIdentifyReply(a)
 
     //membership layer
     case g@GetNode(_) =>
+      incomingMessages += 1
+      outgoingMessages += 1
+
       g.sender.membershipActor ! myNode
 
     //membership layer
     case node@Node(_, _, _, _, _) =>
+      incomingMessages += 1
+      outgoingMessages += 1
+
+
+
       contactNode = node
       log.info("Received contactNode: " + node)
       contactNode.membershipActor ! Join(myNode)
@@ -96,7 +105,6 @@ class HyParViewActor extends Actor with ActorLogging {
 
     //gossip layer
     case gn@GetNeighbors(_, _) =>
-      incomingMessages += 1 //TODO double-check
       receiveGetNeighbors(gn)
 
     //to achieve active view symmetry
@@ -123,7 +131,7 @@ class HyParViewActor extends Actor with ActorLogging {
       outgoingMessages += 1
 
 
-    case TcpFailed(remoteNode: Node) =>
+    case TcpFailed(remoteNode: Node) => //internal message
       // log.info(s"TCP: connection failed with $remoteNode")
       dropNodeFromPassiveView(remoteNode)
       attemptActiveViewNodeReplacement(null)
@@ -264,6 +272,7 @@ class HyParViewActor extends Actor with ActorLogging {
     if (startMsg.contactNodeId != null) {
       val selection = context.actorSelection(startMsg.contactNodeId)
       selection ! Identify()
+      outgoingMessages += 1
     } else {
       log.warning("Contact node not provided")
     }
@@ -271,6 +280,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
   def receiveIdentifyReply(actorIdentity: ActorIdentity) = {
     actorIdentity.ref.get ! GetNode(myNode)
+    outgoingMessages += 1
   }
 
   def receiveJoin(joinMsg: Join) = {
@@ -279,7 +289,7 @@ class HyParViewActor extends Actor with ActorLogging {
     addNodeActView(joinMsg.newNode)
     activeView.keys.toList.filter(n => !n.equals(joinMsg.newNode))
       .foreach(n => n.membershipActor ! ForwardJoin(joinMsg.newNode, ARWL, myNode))
-    outgoingMessages += 1
+    outgoingMessages += (1 * activeView.size)
   }
 
   def receiveForwardJoin(forwardMsg: ForwardJoin): Unit = {
