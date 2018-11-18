@@ -27,7 +27,7 @@ object ComputeStats {
     }
 
 
-    for (line <- Source.fromFile("results.txt").getLines) {
+    for (line <- Source.fromFile("deploy/results/processedresults/results.csv").getLines) {
       val columns = line.split(",")
 
       val nodeId = columns(0).toInt
@@ -84,21 +84,19 @@ object ComputeStats {
 
         val topicTotalCount = publishTotal(topic_count._1)
 
-        val accuracy =
-          if (!subsByNode(node_ListTopicCount._1).contains(topic_count._1)) //not interested
-            -1.0
-          else if (topicTotalCount.equals(0)) //no publications
-            1.0
-          else {
-            val deliveredOfNodeList = deliveredByNode(node_ListTopicCount._1).filter(tc => tc._1.equals(topic_count._1))
-            val deliveredOfNode =
-              if (deliveredOfNodeList.isEmpty)
-                0
-              else
-                deliveredOfNodeList.head._2
+        var accuracy: Double = -1.0
 
-            deliveredOfNode / topicTotalCount
-          }
+        if (!subsByNode(node_ListTopicCount._1).contains(topic_count._1)) //not interested
+          accuracy = -1.0
+        else if (topicTotalCount.equals(0)) //no publications
+          accuracy = 1.0
+        else {
+          val deliveredOfNodeList = deliveredByNode(node_ListTopicCount._1).filter(tc => tc._1.equals(topic_count._1))
+          if (deliveredOfNodeList.isEmpty)
+            accuracy = 0
+          else
+            accuracy = deliveredOfNodeList.head._2.toDouble / topicTotalCount.toDouble
+        }
 
         (topic_count._1, accuracy)
 
@@ -159,19 +157,25 @@ object ComputeStats {
     println(s"TotalAccuracy: $totalAccuracy")
 
 
-    val file1 = new File("totalAccuracy.txt")
+
+
+    val file1 = new File("deploy/results/processedresults/totalAccuracy.csv")
     val pw1 = new BufferedWriter(new FileWriter(file1))
-    pw1.write(totalAccuracy.toString)
+    pw1.write(s"${totalAccuracy.toString}\n")
 
-    val file2 = new File("accuracyByTopic.txt")
+    val file2 = new File("deploy/results/processedresults/accuracyByTopic.csv")
     val pw2 = new BufferedWriter(new FileWriter(file2))
-    accuracyByTopic.foreach(p => pw2.write(s"${p._1},${p._2}"))
+    accuracyByTopic.foreach(p => pw2.write(s"${p._1},${p._2}\n"))
 
 
-    val file3 = new File("publishTotal.txt")
+    val file3 = new File("deploy/results/processedresults/publishTotal.csv")
     val pw3 = new BufferedWriter(new FileWriter(file3))
-    publishTotal.foreach(p => pw2.write(s"${p._1},${p._2}"))
+    publishTotal.foreach(p => pw3.write(s"${p._1},${p._2}\n"))
 
+
+    pw1.close()
+    pw2.close()
+    pw3.close()
 
   }
 
