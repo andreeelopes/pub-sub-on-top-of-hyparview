@@ -66,7 +66,7 @@ class TestAppActor extends Actor with ActorLogging {
 
       Thread.sleep(1000)
 
-      myNode.gossipActor ! MetricsRequest
+      myNode.communicationActor ! MetricsRequest
       myNode.membershipActor ! MetricsRequest
       myNode.pubSubActor ! MetricsRequest
 
@@ -120,7 +120,7 @@ class TestAppActor extends Actor with ActorLogging {
   }
 
   def processMetricsReceived(): Unit = {
-    if (numberOfMetricsMessagesReceived == 3 && !wrote) {
+    if (numberOfMetricsMessagesReceived == 2 && !wrote) {
 
       val file = new File(s"../rawoutput/${myNode.name}-outin.txt")
       val pw = new BufferedWriter(new FileWriter(file))

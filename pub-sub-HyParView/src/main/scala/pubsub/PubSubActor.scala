@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging}
-import gossip.{Gossip, GossipDelivery}
+import communication._
 import membership.{MetricsDelivery, MetricsRequest}
 import utils.{Node, Start, Utils}
 
@@ -19,22 +19,19 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   var mySubs = Map[String, Date]()
   val subHops = (diameter + 1) / 2
   val pubHops = (diameter + 1) / 2
-  var delivered = Set[Array[Byte]]()
 
   val TTL = 30
 
   var myNode: Node = _
 
-  //Metrics variables
-  var outgoingMessages = 0 //messages from this actor to some actor in another actor system (another node)
-  var incomingMessages = 0 //messages received from another actor system (another node)
 
-
+  def receiveDirectMsgDelivery(dm: DirectMessage): Unit = {
+    val dateTTLOpt = mySubs.get(dm.topic)
+    if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
+      myNode.testAppActor ! PSDelivery(dm.topic, dm.message)
+  }
 
   override def receive = {
-
-    case MetricsRequest => //TODO double-check
-      myNode.testAppActor ! MetricsDelivery("pubsub",outgoingMessages, incomingMessages)
 
     case Start(node) =>
 
@@ -72,17 +69,15 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     }
 
     //PubSub layer
-    case dm@DirectMessage(_, _, _) =>
-      incomingMessages += 1
-      receiveDirectMsg(dm)
-
-    //PubSub layer
     case RenewSubs =>
       renewSub()
 
     //PubSub layer
     case CleanOldSubs =>
       cleanOldSubs()
+
+    case d@DirectMessageDelivery(_) =>
+      receiveDirectMsgDelivery(d.directMessage)
 
   }
 
@@ -96,7 +91,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     mySubs += (topic -> dateTTL)
 
-    myNode.gossipActor ! Gossip(mid, PassSubscribe(myNode, topic, dateTTL, subHops - 1, mid))
+    myNode.communicationActor ! Gossip(mid, PassSubscribe(myNode, topic, dateTTL, subHops - 1, mid))
   }
 
   def unsubscribe(topic: String) = {
@@ -106,7 +101,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     mySubs -= topic
 
-    myNode.gossipActor ! Gossip(mid, PassUnsubscribe(myNode, topic, subHops - 1, mid))
+    myNode.communicationActor ! Gossip(mid, PassUnsubscribe(myNode, topic, subHops - 1, mid))
   }
 
   def publish(topic: String, m: String) = {
@@ -117,7 +112,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     if (mySubs.contains(topic))
       myNode.testAppActor ! PSDelivery(topic, m)
 
-    myNode.gossipActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
+    myNode.communicationActor ! Gossip(mid, PassPublish(topic, pubHops - 1, m, mid))
   }
 
 
@@ -137,10 +132,10 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     }
 
     if (passSubscribe.subHops > 0) {
-      myNode.gossipActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
+      myNode.communicationActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
     }
 
-//    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
+    //    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
 
   }
@@ -157,7 +152,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
 
     if (passUnsubscribe.unsubHops > 0) {
-      myNode.gossipActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
+      myNode.communicationActor ! Gossip(passUnsubscribe.mid, passUnsubscribe.copy(unsubHops = passUnsubscribe.unsubHops - 1))
     }
 
     log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
@@ -173,41 +168,23 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     val dateTTLOpt = mySubs.get(passPublish.topic)
     if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate)) {
       myNode.testAppActor ! PSDelivery(passPublish.topic, passPublish.message)
-      delivered += passPublish.mid //TODO martelanço
     }
 
     val setOpt = radiusSubsByTopic.get(passPublish.topic)
     if (setOpt.isDefined) {
       setOpt.get.filter(p => p._2.after(Utils.getDate))
-        .foreach{p => p._1.pubSubActor ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid)
-          outgoingMessages +=1}
+        .foreach { p =>
+          myNode.communicationActor ! DirectMessageRequest(p._1, DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+        }
     }
 
-    //TODO dont do gossip for the ones that we sent DirectMessage
     if (passPublish.pubHops > 0) {
-      myNode.gossipActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
+      myNode.communicationActor ! Gossip(passPublish.mid, passPublish.copy(pubHops = passPublish.pubHops - 1))
     }
 
     log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
   }
-
-
-  def receiveDirectMsg(directMessage: DirectMessage) = {
-
-    if (!delivered.contains(directMessage.mid)) {
-
-      log.info(s"Received DirectMsg: $directMessage")
-
-      delivered += directMessage.mid
-
-      val dateTTLOpt = mySubs.get(directMessage.topic)
-      if (dateTTLOpt.isDefined && dateTTLOpt.get.after(Utils.getDate))
-        myNode.testAppActor ! PSDelivery(directMessage.topic, directMessage.message)
-
-    }
-  }
-
 
   def renewSub() = {
     log.info("Trigger Renew subs")
@@ -224,12 +201,9 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   }
 
-
   def cleanOldSubs() = {
     log.info("Cleaning old subscriptions of other nodes")
 
     radiusSubsByTopic = radiusSubsByTopic.map(s => (s._1, s._2.filter(p => p._2.after(Utils.getDate))))
   }
-
-
 }

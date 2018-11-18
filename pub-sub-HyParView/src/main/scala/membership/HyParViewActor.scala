@@ -328,7 +328,7 @@ class HyParViewActor extends Actor with ActorLogging {
 
     log.info(s"Returning GetNeighbors: $peersSample")
 
-    myNode.gossipActor ! Neighbors(peersSample)
+    myNode.communicationActor ! Neighbors(peersSample)
   }
 
   def attemptActiveViewNodeReplacement(filterOut: Node): Unit = {
