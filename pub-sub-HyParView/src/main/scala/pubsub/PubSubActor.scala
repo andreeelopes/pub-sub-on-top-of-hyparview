@@ -5,6 +5,7 @@ import java.util.Date
 
 import akka.actor.{Actor, ActorLogging}
 import gossip.{Gossip, GossipDelivery}
+import membership.{MetricsDelivery, MetricsRequest}
 import utils.{Node, Start, Utils}
 
 import scala.concurrent._
@@ -24,8 +25,16 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
   var myNode: Node = _
 
+  //Metrics variables
+  var outgoingMessages = 0 //messages from this actor to some actor in another actor system (another node)
+  var incomingMessages = 0 //messages received from another actor system (another node)
+
+
 
   override def receive = {
+
+    case MetricsRequest => //TODO double-check
+      myNode.testAppActor ! MetricsDelivery("pubsub",outgoingMessages, incomingMessages)
 
     case Start(node) =>
 
@@ -64,6 +73,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
     //PubSub layer
     case dm@DirectMessage(_, _, _) =>
+      incomingMessages += 1
       receiveDirectMsg(dm)
 
     //PubSub layer
@@ -169,7 +179,8 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
     val setOpt = radiusSubsByTopic.get(passPublish.topic)
     if (setOpt.isDefined) {
       setOpt.get.filter(p => p._2.after(Utils.getDate))
-        .foreach(p => p._1.pubSubActor ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid))
+        .foreach{p => p._1.pubSubActor ! DirectMessage(passPublish.topic, passPublish.message, passPublish.mid)
+          outgoingMessages +=1}
     }
 
     //TODO dont do gossip for the ones that we sent DirectMessage
@@ -195,7 +206,6 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
         myNode.testAppActor ! PSDelivery(directMessage.topic, directMessage.message)
 
     }
-
   }
 
 

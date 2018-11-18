@@ -1,79 +1,42 @@
-
+/*
 import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorLogging, ActorSystem, PoisonPill, Props}
+import akka.event.Logging
 import gossip.GossipActor
 import membership.HyParViewActor
 import pubsub.{PubSubActor, Publish, Subscribe, Unsubscribe}
 import testapp.TestAppActor
-import utils.{Node, Start}
-
-object Main {
-//  def main(args: Array[String]): Unit = {
-//    val andre = ActorSystem("andresystem")
-//    val nelson = ActorSystem("nelsonsystem")
-//    val simon = ActorSystem("simonsystem")
-//
-//    val testAppA = andre.actorOf(Props[TestAppActor], "andretestapp")
-//    val pubsubA = andre.actorOf(Props(new PubSubActor(2)), "andrepubsub")
-//    val gossipA = andre.actorOf(Props(new GossipActor(3)), "andregossip")
-//    val membershipA = andre.actorOf(Props[HyParViewActor], "andremembership")
-//
-//    val testAppN = nelson.actorOf(Props[TestAppActor], "nelsontestapp")
-//    val pubsubN = nelson.actorOf(Props(new PubSubActor(2)), "nelsonpubsub")
-//    val gossipN = andre.actorOf(Props(new GossipActor(3)), "nelsongossip")
-//    val membershipN = nelson.actorOf(Props[HyParViewActor], "nelsonmembership")
-//
-//    val testAppS = nelson.actorOf(Props[TestAppActor], "simontestapp")
-//    val pubsubS = simon.actorOf(Props(new PubSubActor(2)), "simonpubsub")
-//    val gossipS = andre.actorOf(Props(new GossipActor(3)), "simongossip")
-//    val membershipS = simon.actorOf(Props[HyParViewActor], "simonmembership")
-//
-//
-//    //Starting Andre System
-//    val andreNode = Node("andre", testAppA, pubsubA, gossipA, membershipA)
-//
-//    testAppA ! Start(andreNode)
-//    pubsubA ! Start(andreNode)
-//    gossipA ! Start(andreNode)
-//    membershipA ! membership.Start(null, andreNode)
-//
-//    //Starting Nelson System
-//    Thread.sleep(1000)
-//
-//    val nelsonNode = Node("nelson", testAppN, pubsubN, gossipN, membershipN)
-//
-//    testAppN ! Start(nelsonNode)
-//    pubsubN ! Start(nelsonNode)
-//    gossipN ! Start(nelsonNode)
-//    membershipN ! membership.Start(andreNode, nelsonNode)
-//
-//    //Starting Simon System
-//    Thread.sleep(1000)
-//
-//    val simonNode = Node("simon", testAppS, pubsubS, gossipS, membershipS)
-//
-//    testAppS ! Start(simonNode)
-//    pubsubS ! Start(simonNode)
-//    gossipS ! Start(simonNode)
-//    membershipS ! membership.Start(nelsonNode, simonNode)
-//
-//    Thread.sleep(1000)
-//    println("\n\n ---Andre subscribing futebol--- \n\n")
-//    testAppA ! Subscribe("futebol")
-//
-//    Thread.sleep(1000)
-//    println("\n\n ---Nelson publishing futebol--- \n\n")
-//    testAppN ! Publish("futebol", "o bruno de carvalho é uma besta")
-//
-//    Thread.sleep(1000)
-//    println("\n\n ---Andre unsubscribing futebol--- \n\n")
-//    testAppA ! Unsubscribe("futebol")
-//
-//
-//    Thread.sleep(40000)
-//    println("\n\n ---Simon publishing futebol--- \n\n")
-//    testAppS ! Publish("futebol", "o bruno de carvalho é uma besta")
-//
-//  }
+import utils.{Node, Start, Utils}
 
 
+object Main extends App {
+  override def main(args: Array[String]) = {
+    val a = ActorSystem("nodeAsystem")
+    val b = ActorSystem("nodeBSystem")
+//    val c = ActorSystem("nodeCSytstem")
+//    val d = ActorSystem("nodeDSystem")
+//    val e = ActorSystem("nodeDSystem")
+
+
+    val aHyParView = a.actorOf(Props[HyParViewActor], "aHyParView")
+    val bHyParView = b.actorOf(Props[HyParViewActor], "bHyParView")
+//    val cHyParView = c.actorOf(Props[HyParViewActor], "cHyParView")
+//    val dHyParView = d.actorOf(Props[HyParViewActor], "dHyParView")
+//    val eHyParView = e.actorOf(Props[HyParViewActor], "eHyParView")
+
+
+    val aNode = Node("aNode", null, null, null, aHyParView)
+    val bNode = Node("bNode", null, null, null, bHyParView)
+//    val cNode = Node("cNode", null, null, null, cHyParView)
+//    val dNode = Node("dNode", null, null, null, dHyParView)
+//    val eNode = Node("eNode", null, null, null, eHyParView)
+
+
+    aHyParView ! membership.StartLocal(null, aNode)
+    bHyParView ! membership.StartLocal(aNode, bNode)
+//    cHyParView ! membership.StartLocal(aNode, cNode)
+//    dHyParView ! membership.StartLocal(aNode, dNode)
+//    eHyParView ! membership.StartLocal(aNode, eNode)
+  }
 }
+*/

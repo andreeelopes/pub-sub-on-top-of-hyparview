@@ -1,7 +1,7 @@
 package utils
 
 import java.security.MessageDigest
-import java.util.{Calendar, Date}
+import java.util.{Calendar}
 
 import scala.util.Random
 
@@ -14,6 +14,7 @@ object Utils {
     now.getTime
   }
 
+
   def getDate = {
     Calendar.getInstance().getTime
   }
@@ -25,6 +26,4 @@ object Utils {
   def pickRandomN[A](list: List[A], n: Int, except: A = null) = {
     Random.shuffle(list.filter(p => !p.equals(except))).take(n)
   }
-
-
 }

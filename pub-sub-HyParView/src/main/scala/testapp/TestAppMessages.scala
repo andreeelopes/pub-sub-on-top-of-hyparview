@@ -1,4 +1,3 @@
 package testapp
 
-
 object StatsAndDie

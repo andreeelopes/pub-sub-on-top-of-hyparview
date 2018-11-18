@@ -46,11 +46,11 @@ object Remote extends App {
 
     testAppActor ! Start(node)
 
-    Thread.sleep(3 * 60 * 1000)
+    Thread.sleep(1 * 60 * 1000)
 
     testAppActor ! StatsAndDie
 
-    Thread.sleep(5000)
+    Thread.sleep(10000)
 
     system.terminate()
 
