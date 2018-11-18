@@ -11,8 +11,8 @@ object Remote extends App {
 
   override def main(args: Array[String]) = {
 
-    val ip = args(0)
-    val port = args(1)
+    val ip = args(1)
+    val port = args(2)
 
     val config = ConfigFactory.parseString(getConf(ip, port))
 
@@ -23,14 +23,15 @@ object Remote extends App {
     val gossipActor = system.actorOf(Props(new GossipActor(3)), "gossip")
     val membershipActor = system.actorOf(Props[HyParViewActor], "membership")
 
-    val node = Node(s"$port", testAppActor, pubSubActor, gossipActor, membershipActor)
+//    val node = Node(s"$ip:$port", testAppActor, pubSubActor, gossipActor, membershipActor)
+    val node = Node(args(0), testAppActor, pubSubActor, gossipActor, membershipActor)
     println("MyNode: " + node)
 
     var contactAkkaId: String = null
 
     try {
-      val ipContactNode = args(2)
-      val portContactNode = args(3)
+      val ipContactNode = args(3)
+      val portContactNode = args(4)
       contactAkkaId = s"akka.tcp://RemoteService@$ipContactNode:$portContactNode/user/membership"
     } catch {
       case _: Exception =>
