@@ -1,15 +1,24 @@
 package testapp
 
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, PoisonPill}
 import pubsub.{PSDelivery, Publish, Subscribe}
 import utils.{Node, Start}
 import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
+import java.util.concurrent.TimeUnit
 
+import membership.{MetricsDelivery, MetricsRequest}
+
+import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.Random
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 
 class TestAppActor extends Actor with ActorLogging {
+
+  var numberOfMetricsMessagesReceived = 0
+  var metrics: Map[String, List[Int]] = Map[String, List[Int]]()
 
   val numberOfTopics = 50
   val subscribeN = 5
@@ -24,6 +33,9 @@ class TestAppActor extends Actor with ActorLogging {
   var myTopics = List[Int]()
 
   val randomTopics = Random.shuffle(generateList(numberOfTopics)).take(subscribeN)
+
+  context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
+    Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived())
 
   populateMaps()
 
@@ -59,6 +71,10 @@ class TestAppActor extends Actor with ActorLogging {
     case StatsAndDie =>
       printStats()
 
+    case MetricsDelivery(layer, outgoingMessages, incomingMessages) =>
+      metrics += (layer -> List(outgoingMessages, incomingMessages))
+      numberOfMetricsMessagesReceived += 1
+
   }
 
   def incrementCount(topic: String, map: Map[String, Int]) = {
@@ -75,22 +91,43 @@ class TestAppActor extends Actor with ActorLogging {
   }
 
 
-  def printStats() = {
+  def printStats() : Unit = {
 
     val file = new File(s"${myNode.name}.txt")
     val pw = new BufferedWriter(new FileWriter(file))
 
-    pw.write("Subscribed")
-    myTopics.foreach(t => pw.write(s"1,$t,-1"))
+    //pw.write("Subscribed")
+    myTopics.foreach(t => pw.write(s"1,$t,-1\n"))
 
-    pw.write("Published")
-    publishCount.foreach(p => pw.write(s"2,${p._1},${p._2}"))
+    //pw.write("Published")
+    publishCount.foreach(p => pw.write(s"2,${p._1},${p._2}\n"))
 
-    pw.write("Received")
-    receivedCount.foreach(p => pw.write(s"3,${p._1},${p._2}"))
+    //pw.write("Received")
+    receivedCount.foreach(p => pw.write(s"3,${p._1},${p._2}\n"))
 
     pw.close()
 
+    myNode.gossipActor ! MetricsRequest
+    myNode.membershipActor ! MetricsRequest
+  log.info(s">>>>> myNode = ${myNode.gossipActor} | ${myNode.membershipActor}")
+
+  }
+
+  def CheckMetricsReceived() : Unit = {
+    log.info(">>>Metrics<<<")
+    if (numberOfMetricsMessagesReceived == 2) {
+      val file = new File(s"${myNode.name}-metrics.txt")
+      val pw = new BufferedWriter(new FileWriter(file))
+
+      metrics.foreach(pair => pw.write(s"${pair._1}, ${pair._2(1)}, ${pair._2(2)}"))
+
+      pw.close()
+
+      myNode.membershipActor ! PoisonPill
+      myNode.gossipActor ! PoisonPill
+      myNode.pubSubActor ! PoisonPill
+      myNode.testAppActor ! PoisonPill
+    }
   }
 
 

@@ -1,7 +1,7 @@
 package gossip
 
 import akka.actor.{Actor, ActorLogging}
-import membership.{GetNeighbors, Neighbors}
+import membership.{GetNeighbors, MetricsDelivery, MetricsRequest, Neighbors}
 import utils.{Node, Start}
 
 class GossipActor(f: Int) extends Actor with ActorLogging {
@@ -13,8 +13,14 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
 
   var myNode: Node = _
 
+  //Metrics variables
+  var outgoingMessages = 0 //messages from this actor to some actor in another actor system (another node)
+  var incomingMessages = 0 //messages received from another actor system (another node)
 
   override def receive = {
+
+    case MetricsRequest => //TODO double-check
+      myNode.testAppActor ! MetricsDelivery("gossip",outgoingMessages, incomingMessages)
 
     case s@Start(_) =>
       receiveStart(s)
@@ -50,6 +56,7 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
   }
 
   def receiveGossip[A](gossipMsg: Gossip[A]) = {
+    incomingMessages += 1
     if (!delivered.contains(gossipMsg.mid)) {
       delivered += gossipMsg.mid
 
@@ -76,6 +83,7 @@ class GossipActor(f: Int) extends Actor with ActorLogging {
         log.info(s"Sending to $node gossip message: ${Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)}")
 
         node.gossipActor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
+        outgoingMessages += 1
       }
     }
 
