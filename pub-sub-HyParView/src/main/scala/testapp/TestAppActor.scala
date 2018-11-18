@@ -103,7 +103,7 @@ class TestAppActor extends Actor with ActorLogging {
 
   def printStats(): Unit = {
 
-    val file = new File(s"deploy/rawoutput/${myNode.name}.csv")
+    val file = new File(s"../rawoutput/${myNode.name}.csv")
     val pw = new BufferedWriter(new FileWriter(file))
 
     //pw.write("Subscribed")
@@ -122,7 +122,7 @@ class TestAppActor extends Actor with ActorLogging {
   def processMetricsReceived(): Unit = {
     if (numberOfMetricsMessagesReceived == 3 && !wrote) {
 
-      val file = new File(s"deploy/results/${myNode.name}-outin.txt")
+      val file = new File(s"../rawoutput/${myNode.name}-outin.txt")
       val pw = new BufferedWriter(new FileWriter(file))
 
       metrics.foreach(pair => pw.write(s"$myNode,4,${pair._1},${pair._2.head},${pair._2(1)}\n"))

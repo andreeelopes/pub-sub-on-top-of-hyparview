@@ -140,7 +140,7 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
       myNode.gossipActor ! Gossip(passSubscribe.mid, passSubscribe.copy(subHops = passSubscribe.subHops - 1))
     }
 
-    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
+//    log.info(s"radiusSubsByTopic : ${radiusSubsByTopic.toString()}")
 
 
   }
