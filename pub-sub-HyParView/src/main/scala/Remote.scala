@@ -1,6 +1,6 @@
 import akka.actor.{ActorSystem, PoisonPill, Props}
 import com.typesafe.config.ConfigFactory
-import gossip.GossipActor
+import communication.CommunicationActor
 import membership.HyParViewActor
 import pubsub.PubSubActor
 import testapp.{StatsAndDie, TestAppActor}
@@ -20,11 +20,11 @@ object Remote extends App {
 
     val testAppActor = system.actorOf(Props[TestAppActor], "testApp")
     val pubSubActor = system.actorOf(Props(new PubSubActor(2)), "pubSub")
-    val gossipActor = system.actorOf(Props(new GossipActor(3)), "gossip")
+    val communicationActor = system.actorOf(Props(new CommunicationActor(3)), "communication")
     val membershipActor = system.actorOf(Props[HyParViewActor], "membership")
 
-//    val node = Node(s"$ip:$port", testAppActor, pubSubActor, gossipActor, membershipActor)
-    val node = Node(args(0), testAppActor, pubSubActor, gossipActor, membershipActor)
+    //    val node = Node(s"$ip:$port", testAppActor, pubSubActor, communicationActor, membershipActor)
+    val node = Node(args(0), testAppActor, pubSubActor, communicationActor, membershipActor)
     println("MyNode: " + node)
 
     var contactAkkaId: String = null
@@ -39,7 +39,7 @@ object Remote extends App {
 
 
     pubSubActor ! Start(node)
-    gossipActor ! Start(node)
+    communicationActor ! Start(node)
     membershipActor ! membership.Start(contactAkkaId, node)
 
     Thread.sleep(5 * 1000)
@@ -53,10 +53,7 @@ object Remote extends App {
     Thread.sleep(10000)
 
     system.terminate()
-
-
   }
-
 
   def getConf(ip: String, port: String) = {
     s"""
@@ -77,6 +74,4 @@ object Remote extends App {
        |  }
     """.stripMargin
   }
-
-
 }
