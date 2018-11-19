@@ -20,7 +20,7 @@ object ComputeStats {
       subsByNode += (i -> List())
     }
 
-    for (i <- 0 until 5) { //TODO
+    for (i <- 0 until 20) {
       publishByNode += (i -> List())
       deliveredByNode += (i -> List())
     }
@@ -32,7 +32,7 @@ object ComputeStats {
     networkMessages += ("hyparview" -> (0, 0))
     networkMessages += ("communication" -> (0, 0))
 
-    for (line <- Source.fromFile("deploy/results/results.csv").getLines) {
+    for (line <- Source.fromFile("../results/results.csv").getLines) {
       val columns = line.split(",")
 
       val nodeId = columns(0).toInt

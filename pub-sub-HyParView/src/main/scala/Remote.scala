@@ -42,7 +42,7 @@ object Remote extends App {
     communicationActor ! Start(node)
     membershipActor ! membership.Start(contactAkkaId, node)
 
-    Thread.sleep(5 * 1000)
+    Thread.sleep(40 * 1000)
 
     testAppActor ! Start(node)
 

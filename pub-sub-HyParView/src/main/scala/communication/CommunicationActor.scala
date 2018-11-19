@@ -2,6 +2,7 @@ package communication
 
 import akka.actor.{Actor, ActorLogging}
 import membership.{GetNeighbors, MetricsDelivery, MetricsRequest, Neighbors}
+import pubsub.{PassPublish, Publish, Subscribe}
 import utils.{Node, Start, Utils}
 
 class CommunicationActor(f: Int) extends Actor with ActorLogging {
@@ -27,16 +28,12 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
       receiveStart(s)
 
     //Pubsub layer
-    case g@Gossip(_, _) =>
-      receiveGossip(g)
+    case g@GossipRequest(_, _, _) =>
+      receiveGossipRequest(g)
 
     //Gossip layer
-    case pg@PassGossip(_, _) =>
-      receivePassGossip(pg)
-
-    //Gossip layer
-    case s@Send(_, _) =>
-      receiveSend(s)
+    case s@Gossip(_, _) =>
+      receiveGossip(s)
 
     //Membership layer
     case Neighbors(nodes) =>
@@ -57,36 +54,33 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
   }
 
 
-  def receivePassGossip[A](passGossipMsg: PassGossip[A]) = {
-    incomingMessages += 1
-    if (!delivered.contains(passGossipMsg.mid)) {
+  def receiveGossipRequest[A](gossipMsg: GossipRequest[A]) = {
 
-      log.info(s"Received PassGossip Request: $passGossipMsg")
+    log.info(s"Received Gossip Request: $gossipMsg")
 
-      delivered += passGossipMsg.mid
-      myNode.pubSubActor ! GossipDelivery(passGossipMsg.message)
+    pending += (gossipMsg.mid -> gossipMsg)
+
+    gossipMsg.message match {
+      case PassPublish(_, _, _, _) =>
+        val msg = gossipMsg.message.asInstanceOf[PassPublish]
+        if (!delivered.contains(gossipMsg.mid)) {
+          delivered += gossipMsg.mid
+          myNode.pubSubActor ! DirectMessageDelivery(DirectMessage(msg.topic, msg.message, msg.mid))
+        }
+      case _ =>
     }
-  }
 
-  def receiveGossip[A](gossipMsg: Gossip[A]) = {
-    if (!delivered.contains(gossipMsg.mid)) {
-      delivered += gossipMsg.mid
-
-      log.info(s"Received Gossip Request: $gossipMsg")
-
-      pending += (gossipMsg.mid -> gossipMsg)
-      myNode.membershipActor ! GetNeighbors(fanout, myNode)
-      myNode
-    }
+    myNode.membershipActor ! GetNeighbors(fanout, gossipMsg.senderNode)
 
   }
 
-  def receiveSend[A](sendMsg: Send[A]) = {
+
+  def receiveGossip[A](sendMsg: Gossip[A]) = {
 
     if (!delivered.contains(sendMsg.mid)) {
       delivered += sendMsg.mid
 
-      log.info(s"Received Send: $sendMsg")
+      log.info(s"Received Gossip: $sendMsg")
 
       myNode.pubSubActor ! GossipDelivery(sendMsg.message)
     }
@@ -98,9 +92,9 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
 
     pending.foreach { msg =>
       neighbors.foreach { node =>
-        log.info(s"Sending to $node gossip message: ${Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)}")
+        log.info(s"Sending to $node gossip message: ${Gossip(msg._1, msg._2.asInstanceOf[GossipRequest[A]].message)}")
 
-        node.communicationActor ! Send(msg._1, msg._2.asInstanceOf[Gossip[A]].message)
+        node.communicationActor ! Gossip(msg._1, msg._2.asInstanceOf[GossipRequest[A]].message)
         outgoingMessages += 1
       }
     }
@@ -110,10 +104,10 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
 
   def receiveDirectMsg(directMessage: DirectMessage) = {
     if (!delivered.contains(directMessage.mid)) {
+      delivered += directMessage.mid
 
       log.info(s"Received DirectMsg: $directMessage")
 
-      delivered += directMessage.mid
 
       myNode.pubSubActor ! DirectMessageDelivery(directMessage)
     }

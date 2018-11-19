@@ -41,8 +41,8 @@ class HyParViewActor extends Actor with ActorLogging {
   context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
     Duration(2, TimeUnit.SECONDS), self, PassiveViewCyclicCheck)
 
-  context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
-    Duration(HeartBeatPeriod, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
+//  context.system.scheduler.schedule(FiniteDuration(1, TimeUnit.SECONDS),
+//    Duration(HeartBeatPeriod, TimeUnit.SECONDS), self, ActiveViewCyclicCheck)
 
   override def receive = {
 
@@ -121,9 +121,11 @@ class HyParViewActor extends Actor with ActorLogging {
     case TcpSuccess(senderNode: Node) =>
       incomingMessages += 1
 
-      val timer = tcpAttempts(senderNode)
-      timer.cancel()
-      tcpAttempts -= senderNode
+      if (tcpAttempts.get(senderNode).isDefined) {
+        val timer = tcpAttempts(senderNode)
+        timer.cancel()
+        tcpAttempts -= senderNode
+      }
 
       var priority = -1
       if (activeView.isEmpty)

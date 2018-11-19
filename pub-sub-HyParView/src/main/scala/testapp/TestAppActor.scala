@@ -35,15 +35,15 @@ class TestAppActor extends Actor with ActorLogging {
   var myTopics = List[Int]()
 
   val randomTopics = Random.shuffle(generateList(numberOfTopics)).take(subscribeN)
-
-  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-    Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived)
-
-  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+//
+//  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+//    Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived)
+//
+  context.system.scheduler.schedule(FiniteDuration(20, TimeUnit.SECONDS),
     Duration(1, TimeUnit.SECONDS), self, Publish("", ""))
-
-  context.system.scheduler.scheduleOnce(FiniteDuration(10, TimeUnit.SECONDS),
-    self, MetricsRequest)
+//
+//  context.system.scheduler.scheduleOnce(FiniteDuration(10, TimeUnit.SECONDS),
+//    self, MetricsRequest)
 
 
   populateMaps()
