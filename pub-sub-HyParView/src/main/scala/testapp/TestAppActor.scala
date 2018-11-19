@@ -35,15 +35,15 @@ class TestAppActor extends Actor with ActorLogging {
   var myTopics = List[Int]()
 
   val randomTopics = Random.shuffle(generateList(numberOfTopics)).take(subscribeN)
-//
-//  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-//    Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived)
-//
-  context.system.scheduler.schedule(FiniteDuration(20, TimeUnit.SECONDS),
+
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(1, TimeUnit.SECONDS), self, CheckMetricsReceived)
+
+  context.system.scheduler.schedule(FiniteDuration(40, TimeUnit.SECONDS),
     Duration(1, TimeUnit.SECONDS), self, Publish("", ""))
-//
-//  context.system.scheduler.scheduleOnce(FiniteDuration(10, TimeUnit.SECONDS),
-//    self, MetricsRequest)
+
+  context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+    Duration(10, TimeUnit.SECONDS), self, MetricsRequest)
 
 
   populateMaps()
@@ -68,6 +68,10 @@ class TestAppActor extends Actor with ActorLogging {
 
     case Publish(_, _) =>
       if (suicideAfter > counter) {
+
+//        if (Random.nextDouble > 0.5 && suicideAfter - counter == suicideAfter / 2) //simulate suicide
+        //          throw new Exception
+
         val topic = Random.nextInt(numberOfTopics)
         log.info(s"Publishing -> $topic")
         publishCount = incrementCount(topic.toString, publishCount)

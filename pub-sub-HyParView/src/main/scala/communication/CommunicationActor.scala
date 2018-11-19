@@ -114,6 +114,7 @@ class CommunicationActor(f: Int) extends Actor with ActorLogging {
   }
 
   def receiveDirectMsgRequest(req: DirectMessageRequest): Unit = {
+    delivered += req.directMessage.mid
     req.target.communicationActor ! req.directMessage
   }
 

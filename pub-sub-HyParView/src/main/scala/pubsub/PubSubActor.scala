@@ -16,10 +16,10 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
   val diameter = math.log(n * 10).toInt
   var radiusSubsByTopic = Map[String, Set[(Node, Date)]]()
   var mySubs = Map[String, Date]()
-  val subHops = 8
-  val pubHops = 8
+  val subHops = math.ceil((diameter + 1).toDouble / 2.toDouble).toInt
+  val pubHops = math.ceil((diameter + 1).toDouble / 2.toDouble).toInt
 
-  val TTL = 7 * 30
+  val TTL = 4 * 60
 
   var myNode: Node = _
 
@@ -30,11 +30,11 @@ class PubSubActor(n: Int) extends Actor with ActorLogging {
 
       log.info(s"Starting: diameter - $diameter ; subHops - $subHops")
 
-      //      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-      //        Duration(20, TimeUnit.SECONDS), self, RenewSubs)
-      //
-      //      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
-      //        Duration(60, TimeUnit.SECONDS), self, CleanOldSubs)
+      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+        Duration(3 * 60, TimeUnit.SECONDS), self, RenewSubs)
+
+      context.system.scheduler.schedule(FiniteDuration(10, TimeUnit.SECONDS),
+        Duration(3 * 60, TimeUnit.SECONDS), self, CleanOldSubs)
 
       myNode = node
 

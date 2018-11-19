@@ -6,6 +6,8 @@ import pubsub.PubSubActor
 import testapp.{StatsAndDie, TestAppActor}
 import utils.{Node, Start}
 
+import scala.util.Random
+
 
 object Remote extends App {
 

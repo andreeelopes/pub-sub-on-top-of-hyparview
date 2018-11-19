@@ -47,7 +47,7 @@ class HyParViewActor extends Actor with ActorLogging {
   override def receive = {
 
 
-    case MetricsRequest => //TODO double-check
+    case MetricsRequest =>
       myNode.testAppActor ! MetricsDelivery("hyparview", outgoingMessages, incomingMessages)
 
     case s@Start(_, _) =>
@@ -189,8 +189,8 @@ class HyParViewActor extends Actor with ActorLogging {
       // log.info(s"Active View Periodic Check aka heartbeat \n\t | #dead = ${deadNodes.size}/${activeView.size} \n\t | #alive = ${aliveNodes.size}/${activeView.size}")
       deadNodes.foreach(dead => myNode.membershipActor ! TcpDisconnectOrBlocked(dead._1))
       aliveNodes.foreach(p => p._1.membershipActor ! Heartbeat(myNode))
-      //printActiveViewState() //TODO remove print
-      //printPassiveViewState() //TODO remove print
+      //printActiveViewState()
+      //printPassiveViewState()
 
       outgoingMessages += (1 * aliveNodes.size)
 
@@ -312,7 +312,7 @@ class HyParViewActor extends Actor with ActorLogging {
         //log.info(s"Forward Join: Stopped on me | Gonna Add Passive")
       }
 
-      val n = Utils.pickRandomN[Node](activeView.keys.toList.filter(node => !node.equals(forwardMsg.senderNode)), 1).head //TODO head pode nao existir se a lista vier vazia
+      val n = Utils.pickRandomN[Node](activeView.keys.toList.filter(node => !node.equals(forwardMsg.senderNode)), 1).head
 
       //log.info(s"Forward Join: forwarding to $n")
       n.membershipActor ! ForwardJoin(forwardMsg.newNode, forwardMsg.ttl - 1, myNode)
